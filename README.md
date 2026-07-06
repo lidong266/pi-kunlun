@@ -1,6 +1,7 @@
-# Pi-Kunlun V2 &mdash; Ternary Cognitive Infrastructure
+# 昆仑OS (Pi-Kunlun) — AI 认知操作系统
 
-> **&pi;-&Kcy;&#1091;&#1085;&#1100;&#1083;&#1091;&#1085;&#1100;** (Pi-Kunlun) is a ternary (+1/0/-1) cognitive infrastructure built on the philosophy of *Dacheng Zhihuixue* (大成智慧学 / Science of Great Wisdom) with four core algorithmic engines derived from dialectical materialism.
+> **以大成智慧学为运行、以 Pi Agent 为内核、以矛盾论/实践论/论持久战/OCGS为核心算法、**
+> **以三进制(+1/0/-1)为数学底座、以七层认知流为架构的 AI 认知操作系统**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/badge/Node-%3E%3D22-green)](https://nodejs.org/)
@@ -10,251 +11,238 @@
 
 ---
 
-## What is Pi-Kunlun?
+## 什么是昆仑OS？
 
-Pi-Kunlun is **not** a backend platform, an AI chatbot, or a knowledge base. It is a **cognitive infrastructure** where AI and humans co-exist in the same cognitive field &mdash; perceiving, thinking, expressing, remembering, governing, evolving, and acting together.
+昆仑OS 不是一个后端平台、不是聊天机器人、不是知识库。它是一个 **AI 认知操作系统**——让 AI 与人类在同一个系统中共同感知、思考、表达、记忆、治理、进化和行动。
 
-### Core Architecture
+### 定位
 
 ```
-  Ternary Math Base (+1/0/-1)
-        &darr;
-  Cognitive Presence (Dacheng Zhihuixue runtime)
-        &darr;
-  Event Bus (ternary lifecycle)
-        &darr;
-  Four Engines:
-    &bull; Contradiction Engine   (矛盾论  &mdash; On Contradiction)
-    &bull; Practice Spiral        (实践论  &mdash; On Practice)
-    &bull; Protracted War Strategy (论持久战 &mdash; On Protracted War)
-    &bull; OCGS Adaptive Layer    (开放复杂巨系统论 &mdash; OCGS Theory)
-        &darr;
-  Cognitive Subsystems (Diting, Taiyi, Tiangong, Langhuan, Guicang)
-        &darr;
-  Execution Infrastructure (Pi + pi-evolve + Python Bridge)
+Linux 内核     →  Android / Windows / HarmonyOS  用户操作系统
+Pi Agent       →  昆仑OS                          认知操作系统
+   ↑                        ↑
+   内核层                   用户层 OS
 ```
 
-### Key Differences from Traditional AI Systems
+**关键原则：昆仑OS 调度 Pi，不是 Pi 调度昆仑OS。**
 
-| Dimension | Traditional AI | Pi-Kunlun V2 |
-|-----------|---------------|--------------|
-| **Math base** | Boolean (true/false) | Ternary (+1/0/-1) |
-| **Runtime philosophy** | Request-response | Continuous presence, pulsed cognition |
-| **Core algorithm** | Reasoning engine | Contradiction analysis engine |
-| **Learning model** | Train &rarr; deploy &rarr; evaluate | Practice &rarr; cognition &rarr; re-practice &rarr; re-cognition (spiral) |
-| **Time model** | External variable | Built-in dimension (defense &rarr; stalemate &rarr; counteroffensive) |
-| **System boundary** | Closed (API-driven) | Open (ecosystem-aware, self-adaptive) |
+从 HarmonyOS 借鉴调度器设计思想（每核独立队列/SchedOps虚函数表多态/SMP IPI/跨核通信），但所有子系统以 AI 认知操作系统的需求为出发点，而非硬件操作系统的子系统分类。
 
 ---
 
-## Package Structure
-
-This monorepo contains 8 packages organized in a dependency hierarchy:
-
-| Layer | Package | Description |
-|:-----:|---------|-------------|
-| L0 | `@kunlun/ternary` | Ternary logic base: Trit, Tryte, K3 operators, state machines |
-| L2 | `@kunlun/eventbus` | Ternary event bus with +1/0/-1 lifecycle events |
-| L4 | `@kunlun/presence` | Cognitive presence: continuous field, pulse engine, distance sensing |
-| L5 | `@kunlun/contradiction` | Contradiction analysis engine: 8 analyzers for dialectical reasoning |
-| L6 | `@kunlun/ocgs` | Open Complex Giant System: ecosystem sensor, emergence detector, adaptive regulator |
-| L7 | `@kunlun/pw` | Protracted War strategy: phase assessment, tempo regulation, tactics |
-| L8 | `@kunlun/spiral` | Practice Spiral: practice &rarr; cognition &rarr; re-practice &rarr; deepened cognition |
-| L3 | `@kunlun/subsystems` | Cognitive subsystems: Diting, Taiyi, Tiangong, Langhuan, Guicang |
+## 架构总览
 
 ```
-@kunlun/ternary
-  &darr;
-@kunlun/eventbus
-  &darr;
-@kunlun/presence  &rarr;  @kunlun/contradiction
-  &darr;                      &darr;
-@kunlun/spiral  &larr;  @kunlun/subsystems  &larr;  @kunlun/ocgs
-  &darr;
-@kunlun/pw
+ ┌──────────────────────────────────────────────────────────┐
+ │  用户界面层（TUI / CLI / Web / 微信 / API）               │
+ ├──────────────────────────────────────────────────────────┤
+ │  认知服务层 — 七层认知流                                  │
+ │  感知 → 思考 → 表达 → 记忆 → 治理 → 进化 → 行动          │
+ ├──────────────────────────────────────────────────────────┤
+ │  算法核心 — 四大算法引擎                                   │
+ │  矛盾论 · 实践论 · 论持久战 · OCGS                        │
+ │  三进制数学底座 (+1/0/-1)                                 │
+ ├──────────────────────────────────────────────────────────┤
+ │  内核抽象层 CogKAL                                        │
+ │  ├── 多认知核心调度器（三策略/IPI/亲和性/GC）              │
+ │  ├── Token/注意力预算管理                                  │
+ │  ├── 认知能力注册表                                       │
+ │  ├── 认知信任与价值对齐                                    │
+ │  └── 认知执行引擎                                         │
+ ├──────────────────────────────────────────────────────────┤
+ │  调度以下认知内核资源                                      │
+ ├──────────────┬──────────────┬────────────────────────────┤
+ │  Pi Agent    │  LLM 实例    │  工具/记忆/知识库/人类       │
+ │  (认知微内核)  │  (算力内核)   │  (能力提供者)              │
+ └──────────────┴──────────────┴────────────────────────────┘
+```
+
+### 三层架构（从 HarmonyOS 借鉴）
+
+| HarmonyOS 层 | 昆仑OS 层 | 说明 |
+|-------------|----------|------|
+| LiteOS-A 微内核 | **CogKAL 多认知核心调度器** | 控制"认知任务在哪里执行" |
+| 分布式软总线 | **认知事件总线** | 控制"哪些认知节点可以协作" |
+| AI Engine | **四大算法 Plugin** | 控制"什么认知算法来处理" |
+
+---
+
+## 设计文档（24章，1576行）
+
+完整设计方案位于 [`docs/architecture/昆仑OS-设计方案.md`](docs/architecture/昆仑OS-设计方案.md)：
+
+| 章节 | 内容 |
+|:----:|------|
+| 1-3 | 愿景、架构总览、七层认知流 |
+| 4-5 | 四大算法引擎、三进制数学底座 |
+| 6 | CogKAL 认知内核抽象层 |
+| **7** | **多认知核心调度器**（三策略/亲和性/IPI/GC/多实例启动） |
+| **8** | **认知事件总线**（节点发现/CogLedger/双通道） |
+| **9** | **四大算法 Plugin 注册机制**（参考 AI Engine IPlugin） |
+| 10-12 | 战略分期、技术选型、与现有架构的关系 |
+| 13 | HarmonyOS 借鉴清单 |
+| 14 | TypeScript 架构框架 |
+| **15** | **认知能力注册**（CogCapabilityRegistry） |
+| **16** | **Token/注意力预算**（CogMemoryPool） |
+| **17** | **认知信任与价值对齐**（CogTrust） |
+| 18 | 认知执行引擎 |
+| **19** | **七层流数据管道**（CogPipeline） |
+| **20** | **认知进程模型**（萌芽→探索→结晶→表达→归档） |
+| **21** | **人类节点异步模型** |
+| **22** | **大成智慧学可操作化**（从定性到定量综合集成） |
+| 23-24 | 引导顺序、行动清单 |
+
+---
+
+## 关键设计
+
+### 三策略调度器
+
+```typescript
+// 不是时间片调度，而是矛盾优先级调度
+function topCogTaskGet(rq: CogRunqueue): CogTaskCB | null {
+  // ① 共识截止时间（deadline 最近优先，类比 EDF）
+  const consensusTask = consensusQueueTopTaskGet(rq.consensusQueue)
+  if (consensusTask) return consensusTask
+  // ② 矛盾优先级（矛盾尖锐优先，类比 HPF 32级位图）
+  const contradictionTask = contradictionQueueTopTaskGet(rq.contradictionQueue)
+  if (contradictionTask) return contradictionTask
+  // ③ 螺旋迭代（收敛度最差优先，昆仑新增）
+  const spiralTask = spiralQueueTopTaskGet(rq.spiralQueue)
+  if (spiralTask) return spiralTask
+  return rq.idleTask  // 空闲：自我进化/记忆归纳
+}
+```
+
+### 认知亲和性（类比 CPU Affinity）
+
+```typescript
+interface KernelAffinity {
+  preferredKernel: 'pi-agent' | 'llm' | 'tool' | 'human'
+  currentInstance: string
+  allowedInstances: string[]
+}
+```
+
+### 跨 Pi 实例 IPI（类比 SMP 核间中断）
+
+```typescript
+enum CogIPIType { WAKEUP, SCHEDULE, HALT, FUNC_CALL }
+function cogMpSchedule(target: string[]): void {
+  // 通过认知事件总线向目标实例发送 IPI
+}
 ```
 
 ---
 
-## Quick Start
+## 包结构
 
-### Prerequisites
+### V2 核心包（8包 Monorepo）
 
-- **Node.js** &ge; 22.0.0
-- **pnpm** 9.15.0
-
-### Install &amp; Build
-
-```bash
-# Clone the repository
-git clone <repo-url>
-cd pi-kunlun
-
-# Install dependencies
-pnpm install
-
-# Build all packages (in dependency order)
-pnpm run build
+```
+packages/
+├── kunlun-ternary         L0  三元类型系统（Trit/Tryte/K3）
+├── kunlun-eventbus        L2  三元事件总线
+├── kunlun-presence        L4  认知在场
+├── kunlun-contradiction   L5  矛盾引擎（8分析器+辩证推理）
+├── kunlun-ocgs            L6  OCGS自适应层（生态感知/涌现检测）
+├── kunlun-pw              L7  论持久战（三阶段评估）
+├── kunlun-spiral          L8  实践螺旋
+├── kunlun-subsystems      L3  认知子系统（谛听/太一/天工/琅嬛/归藏/玄关/镇岳/镇商）
 ```
 
-### Run Tests
+### 扩展 & Fork
 
-```bash
-# Run all integration tests (90 tests, 8 test suites)
-pnpm exec vitest run integration-tests --config integration-tests/vitest.config.ts
+```
+extension/                 Pi 扩展入口（昆仑OS engine 注册）
+  ├── index.ts             全链路管线（矛盾→策略→螺旋→生态→记忆）
+  ├── persistent-memory.ts SQLite 持久化记忆
+  ├── conflict-detector.ts 冲突检测器
+  └── dragon-gate.ts       龙门补录
 
-# Run unit tests for a specific package
-pnpm --filter @kunlun/ternary test
-
-# Run with coverage
-pnpm --filter @kunlun/ternary test --coverage
+fork/packages/agent        Pi Agent Fork（注入三元分析+工具路由）
+  ├── agent-loop.ts        925行注入三元分析
+  ├── kunlun-bridge.ts     三层适配器（分析/决策/记忆）
+  └── harness/             AI 安全带框架
 ```
 
 ---
 
-## The Ternary Type System
+## 包依赖层级
 
-All logic in Pi-Kunlun is built on the `Trit` primitive:
+```
+@kunlun/ternary               (L0)  三元类型系统
+    ↓
+@kunlun/eventbus              (L2)  三元事件总线
+    ↓
+@kunlun/presence              (L4)  认知在场
+@kunlun/contradiction         (L5)  矛盾引擎
+    ↓
+@kunlun/subsystems            (L3)  认知子系统
+    ↑           ↑              ↑
+@kunlun/ocgs   @kunlun/spiral @kunlun/pw
+               (L6)           (L8)   (L7)
+```
+
+---
+
+## 三进制类型系统
 
 ```typescript
 type Trit = 1 | 0 | -1;
-// +1 = true / confirmed / strengthened
-//  0 = unknown / pending / observing
-// -1 = false / negated / weakened
+// +1 = 支持 / 强化
+//  0 = 中立 / 待定
+// -1 = 反对 / 否定
 
-const T_TRUE: Trit = 1;
-const T_UNKNOWN: Trit = 0;
-const T_FALSE: Trit = -1;
-
-// K3 ternary logic operators
-TernaryLogic.AND(1, 0);   // &rarr; 0
-TernaryLogic.OR(-1, 0);   // &rarr; 0
-TernaryLogic.NOT(1);      // &rarr; -1
-TernaryLogic.IMPLIES(0, -1); // &rarr; 0 (unknown implies false = unknown)
-```
-
-The `Tryte` (6-trit vector) provides 729 states for fine-grained confidence encoding:
-
-```typescript
-type Tryte = [Trit, Trit, Trit, Trit, Trit, Trit];
-// 3^6 = 729 possible states
-// Range: -364 (all -1) to +364 (all +1)
-// 0 = all unknown
+// K3 三值逻辑
+TernaryLogic.AND(1, 0);    // → 0
+TernaryLogic.OR(-1, 0);    // → 0
+TernaryLogic.NOT(1);       // → -1
+TernaryLogic.IMPLIES(0, -1); // → 0
 ```
 
 ---
 
-## The Contradiction Engine
+## 测试
 
-The heart of Pi-Kunlun is the contradiction analysis engine. Instead of "input &rarr; reason &rarr; answer", it works on **contradiction pairs**:
+```bash
+# 全部集成测试（90个，8个套件）
+pnpm exec vitest run integration-tests --config integration-tests/vitest.config.ts
 
-```typescript
-const engine = createContradictionEngine();
+# 单个包测试
+pnpm --filter @kunlun/ternary test
 
-const result = engine.analyzeSingle({
-  id: 'cp-1',
-  thesis: makeProposition('AI will replace human labor', T_TRUE),
-  antithesis: makeProposition('AI will create new jobs', T_TRUE),
-  contradictionType: 'non_antagonistic',
-  priority: 1,
-  discoveredAt: Date.now(),
-  warPhaseAtDiscovery: 'strategic_defense',
-});
-
-// result.analysis.unifiability   &rarr; Trit (+1/0/-1)
-// result.analysis.dominantAspect &rarr; Trit
-// result.qualitativeChange       &rarr; threshold status
-// result.negationCycle           &rarr; negation stage
-// result.recommendations         &rarr; action items
-// result.overallConfidence       &rarr; Trit
+# 测试覆盖
+pnpm --filter @kunlun/ternary test --coverage
 ```
 
-Eight analyzers implement the full dialectical framework:
-1. **Principal Contradiction Locator** &mdash; identifies the key contradiction
-2. **Aspect Analyzer** &mdash; analyzes each side of a contradiction
-3. **Unity of Opposites Deriver** &mdash; finds conditions for unification
-4. **Qualitative Change Detector** &mdash; detects approaching critical thresholds
-5. **Negation of Negation Detector** &mdash; tracks spiral ascension
-6. **Transformation Predictor** &mdash; predicts transformation paths
-7. **Unification Conditions Deriver** &mdash; finds specific unification conditions
-8. **Contradiction Chain Analyzer** &mdash; maps causal chains between contradictions
+**90/90 全部通过** ✅
 
 ---
 
-## Integration Tests
+## 快速开始
 
-90 integration tests covering all 8 packages, organized by priority:
+```bash
+# 克隆
+git clone https://github.com/lidong266/pi-kunlun.git
+cd pi-kunlun
 
-```
-integration-tests/
-&boxvr;&boxh; vitest.config.ts
-&boxvr;&boxh; p0-core/
-&boxv;  &boxvr;&boxh; trit-foundation.test.ts       (10 tests)  &mdash; Ternary math base
-&boxv;  &boxvr;&boxh; eventbus-storm-resilience.test.ts (14 tests)  &mdash; Event bus resilience
-&boxv;  &boxvr;&boxh; presence-eventbus-subsystems.test.ts (4 tests)  &mdash; Cross-layer integration
-&boxv;  &boxvr;&boxh; diting-contradiction-taiyi.test.ts  (13 tests)  &mdash; Diting &rarr; Contradiction &rarr; Taiyi
-&boxv;  &boxvr;&boxh; contradiction-spiral-pw.test.ts      (12 tests)  &mdash; Contradiction &rarr; Spiral &rarr; PW
-&boxv;  &boxvr;&boxh; guicang-langhuan.test.ts             (10 tests)  &mdash; Guicang + Langhuan
-&boxv;  &boxurl;&boxh; p1-important/
-&boxv;  &boxvr;&boxh; trit-cross-package.test.ts    (20 tests)  &mdash; Cross-package Trit consistency
-&boxv;  &boxvr;&boxh; ocgs-full-cycle.test.ts       (9 tests)   &mdash; OCGS full cycle
-&boxv;  &boxurl;&boxh; p2-edge/
-&boxv;     &boxurl;&boxh; ocgs-subsystems-contract.test.ts (6 tests) &mdash; OCGS-Diting contract
-```
+# 安装
+pnpm install
 
-All tests pass: **90/90** &check;
+# 构建
+pnpm run build
 
----
-
-## Project Structure
-
-```
-pi-kunlun/
-&boxvr;&boxh; package.json              # Root workspace config
-&boxvr;&boxh; pnpm-workspace.yaml       # pnpm monorepo definition
-&boxvr;&boxh; tsconfig.base.json        # Shared TypeScript config
-&boxvr;&boxh; integration-tests/        # Cross-package integration tests
-&boxvr;&boxh; packages/
-&boxv;  &boxvr;&boxh; kunlun-ternary/         # L0: Ternary logic base
-&boxv;  &boxvr;&boxh; kunlun-eventbus/        # L2: Ternary event bus
-&boxv;  &boxvr;&boxh; kunlun-presence/        # L4: Cognitive presence
-&boxv;  &boxvr;&boxh; kunlun-contradiction/   # L5: Contradiction engine
-&boxv;  &boxvr;&boxh; kunlun-ocgs/            # L6: OCGS adaptive layer
-&boxv;  &boxvr;&boxh; kunlun-pw/              # L7: Protracted war strategy
-&boxv;  &boxvr;&boxh; kunlun-spiral/          # L8: Practice spiral
-&boxv;  &boxurl;&boxh; kunlun-subsystems/     # L3: Cognitive subsystems
-&boxvr;&boxh; docs/                     # Architecture & design documents
-&boxurl;&boxh; deliverables/            # Audit & review reports
+# 测试
+pnpm exec vitest run integration-tests
 ```
 
 ---
 
-## Documentation
+## 许可证
 
-- [Architecture Design (V2)](../PI-KUNLUN-V2-ARCHITECTURE.md) &mdash; Full system design document
-- [Security Audit (V2)](../PI-KUNLUN-V2-SECURITY-AUDIT.md) &mdash; OWASP + STRIDE assessment
-- [Integration Test Reports](deliverables/gstack/) &mdash; Round-by-round test fix reports
-- [CHANGELOG](CHANGELOG.md) &mdash; Release history
+[MIT](LICENSE) © 2025-2026 Pi-Kunlun Contributors
 
 ---
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-Key principles:
-- **Ternary-first**: All new logic must use Trit/Tryte, not boolean
-- **Test-driven**: Integration tests must pass before PR merge
-- **Dependency order**: Build in topological order (L0 &rarr; L2 &rarr; L4-&rarr;...)
-- **Monorepo discipline**: Cross-package imports must be explicit workspace dependencies
-
----
-
-## License
-
-[MIT](LICENSE) &copy; 2025-2026 Pi-Kunlun Contributors
-
----
-
-> *"The unity of opposites is the fundamental law of the universe."*
-> &mdash; *On Contradiction*
+> *"从定性到定量综合集成"* — 钱学森 大成智慧学
