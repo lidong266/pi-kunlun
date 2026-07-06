@@ -176,48 +176,104 @@ export class MultiKernelOrchestrator {
   }
 
   /**
-   * 一键深度分析: 自动拆解 + 并行 + 汇总
+   * 一键深度分析: LLM智能拆解 + 多Pi并行 + 综合集成
    *
    * 这是最常用的入口——用户只需提出问题，
-   * 昆仑OS 自动做认知拆解、多 Pi 并行、综合集成。
+   * 昆仑OS 自动做认知分析 → LLM智能拆解 → 多Pi并行 → 综合集成。
    */
   async deepAnalyze(query: string): Promise<{
     analysis: KunlunAnalysis;
+    subTasks: SubTask[];
     mapReduceResult: Awaited<ReturnType<typeof this.mapReduce>>;
     fromCache: boolean;
   }> {
-    // 检查分析缓存
+    // 第一步: 认知分析 (纯本地 ~20ms)
     const cachedAnalysis = this.shared.getCachedAnalysis(query);
     const analysis = cachedAnalysis ?? await this.main.os.injectCognition(
       [{ role: 'user', content: query }], ''
     );
 
-    // 缓存分析结果
     if (!cachedAnalysis) {
       this.shared.cacheAnalysis(query, analysis);
     }
 
-    // 根据矛盾分析自动拆解子任务
-    const subTasks = this.decomposeFromAnalysis(query, analysis);
+    // 第二步: LLM 智能拆解
+    // 让 LLM 分析问题结构，拆成 N 个可并行的子任务
+    const subTasks = await this.decomposeWithLLM(query, analysis);
 
-    // MapReduce（子 Pi 的结果会自动写入共享记忆）
+    // 第三步: MapReduce 并行执行
     const mrResult = await this.mapReduce(query, subTasks);
 
-    // 写入共享记忆
+    // 第四步: 写入共享记忆
     this.shared.writeMemory(
-      `分析: ${query} → ${analysis.summary}`,
+      `分析: ${query} → ${analysis.summary} (${subTasks.length}子任务并行)`,
       analysis.knowledgeCards?.map(c => c.id) ?? [],
     );
 
-    return { analysis, mapReduceResult: mrResult, fromCache: !!cachedAnalysis };
+    return { analysis, subTasks, mapReduceResult: mrResult, fromCache: !!cachedAnalysis };
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 内部
+  // LLM 智能拆解
   // ═══════════════════════════════════════════════════════════
 
   /**
-   * 从认知分析结果自动拆解子任务
+   * 用 LLM 将复杂问题拆解为可并行的子任务
+   *
+   * 输入: 用户问题 + 认知分析结果
+   * 输出: 结构化的子任务列表
+   */
+  private async decomposeWithLLM(query: string, analysis: KunlunAnalysis): Promise<SubTask[]> {
+    // 构建拆解 prompt：把认知分析结果作为上下文
+    const decomposePrompt = [
+      '你是一个任务拆解专家。请将以下问题拆解为多个可并行执行的子任务。',
+      '',
+      `原始问题: ${query}`,
+      '',
+      analysis.bridge
+        ? `学科桥: ${analysis.bridge.icon} ${analysis.bridge.name} — ${analysis.bridge.axiom}`
+        : '',
+      analysis.contradictions.length > 0
+        ? `检测到的矛盾:\n${analysis.contradictions.map(c => `  · ${c.thesis} ↔ ${c.antithesis}`).join('\n')}`
+        : '',
+      analysis.strategy ? `策略: ${analysis.strategy}` : '',
+      '',
+      '要求:',
+      '1. 每个子任务必须是独立可并行执行的',
+      '2. 子任务数量2-5个，不宜过多',
+      '3. 每个子任务的 prompt 必须自包含（含完整上下文）',
+      '4. 输出JSON格式: {"subtasks":[{"prompt":"..."},{"prompt":"..."}]}',
+      '',
+      '请输出JSON:',
+    ].filter(Boolean).join('\n');
+
+    try {
+      // 调用 LLM 拆解
+      const llmResponse = await this.main.harness.prompt(decomposePrompt);
+      const text = extractText(llmResponse);
+
+      // 解析 JSON
+      const jsonMatch = text.match(/\{[\s\S]*"subtasks"[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.subtasks && Array.isArray(parsed.subtasks)) {
+          return parsed.subtasks.map((t: any, i: number) => ({
+            id: `llm-${i}`,
+            prompt: t.prompt,
+            systemPrompt: t.systemPrompt,
+          }));
+        }
+      }
+    } catch {
+      // LLM 拆解失败 → 降级到规则拆解
+    }
+
+    // 降级: 规则拆解
+    return this.decomposeFromAnalysis(query, analysis);
+  }
+
+  /**
+   * 规则拆解（LLM不可用时的降级方案）
    */
   private decomposeFromAnalysis(query: string, analysis: KunlunAnalysis): SubTask[] {
     const tasks: SubTask[] = [];
@@ -242,7 +298,7 @@ export class MultiKernelOrchestrator {
       });
     }
 
-    // 兜底: 按维度拆解
+    // 兜底
     if (tasks.length === 0) {
       tasks.push(
         { id: 'dim-0', prompt: `从技术实现角度分析: ${query}` },
