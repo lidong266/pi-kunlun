@@ -75,6 +75,10 @@ export type { KernelPoolConfig, SubTask, SubTaskResult } from './multi-kernel.js
 export { SharedCognitiveLayer, LLMResponseCache } from './shared-layer.js';
 export type { SharedLayerConfig } from './shared-layer.js';
 
+// ─── Worker 事件总线 ───
+export { InsightEventBus } from './insight-bus.js';
+export type { KeyFindingEvent, InsightCallback } from './insight-bus.js';
+
 // ─── CLI 入口 ───
 export { KunlunCLI } from './cli';
 export { CognitiveCLI, runCognitiveCli } from './cognitive-cli';

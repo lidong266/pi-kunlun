@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { SharedCognitiveLayer, LLMResponseCache } from '../src/shared-layer.js';
 import { CognitivePrefetcher, ToolDeduplicator, StreamReduceCollector, ConcurrencyController } from '../src/optimizations.js';
+import { InsightEventBus } from '../src/insight-bus.js';
 
 describe('多Pi架构效率测试', () => {
   // ═══════════════════════════════════════════════════════════
@@ -321,6 +322,144 @@ describe('多Pi架构效率测试', () => {
       expect(stats.llmCache.hits).toBeGreaterThanOrEqual(1);
       expect(stats.analysisCache).toBeGreaterThanOrEqual(1);
       expect(stats.memories).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Worker 事件总线
+  // ═══════════════════════════════════════════════════════════
+  describe('InsightEventBus', () => {
+    it('Worker 订阅并接收广播', () => {
+      const bus = new InsightEventBus();
+      const received: string[] = [];
+
+      bus.subscribe('worker-0', (event) => {
+        received.push(event.finding);
+      });
+
+      bus.broadcast({
+        sourceWorkerId: 'worker-1',
+        finding: '发现关键架构问题',
+        confidence: 0.9,
+        timestamp: Date.now(),
+        tags: ['架构', '问题'],
+      });
+
+      expect(received).toEqual(['发现关键架构问题']);
+    });
+
+    it('广播者自身不收到事件', () => {
+      const bus = new InsightEventBus();
+      const received: string[] = [];
+
+      bus.subscribe('worker-0', (event) => {
+        received.push(event.finding);
+      });
+
+      bus.broadcast({
+        sourceWorkerId: 'worker-0',
+        finding: '自己的发现',
+        confidence: 0.5,
+        timestamp: Date.now(),
+        tags: [],
+      });
+
+      expect(received).toEqual([]);
+    });
+
+    it('getSince 仅返回新事件', () => {
+      const bus = new InsightEventBus();
+      const t0 = Date.now();
+
+      bus.broadcast({
+        sourceWorkerId: 'w1', finding: 'old', confidence: 0.5,
+        timestamp: t0 - 10000, tags: [],
+      });
+      bus.broadcast({
+        sourceWorkerId: 'w2', finding: 'new', confidence: 0.8,
+        timestamp: t0 + 1000, tags: [],
+      });
+
+      const recent = bus.getSince(t0);
+      expect(recent).toHaveLength(1);
+      expect(recent[0]!.finding).toBe('new');
+    });
+
+    it('getRecent 返回最近N条', () => {
+      const bus = new InsightEventBus();
+      for (let i = 0; i < 5; i++) {
+        bus.broadcast({
+          sourceWorkerId: `w${i}`, finding: `finding-${i}`,
+          confidence: 0.5, timestamp: Date.now(), tags: [],
+        });
+      }
+      expect(bus.getRecent(3)).toHaveLength(3);
+    });
+
+    it('unsubscribe 后不再接收事件', () => {
+      const bus = new InsightEventBus();
+      const received: string[] = [];
+      const cb = (e: { finding: string }) => { received.push(e.finding); };
+
+      bus.subscribe('w0', cb);
+      bus.unsubscribe('w0', cb);
+
+      bus.broadcast({
+        sourceWorkerId: 'w1', finding: 'should not receive',
+        confidence: 0.5, timestamp: Date.now(), tags: [],
+      });
+
+      expect(received).toEqual([]);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // 批量上下文注入
+  // ═══════════════════════════════════════════════════════════
+  describe('batchInjectContext', () => {
+    it('compact 格式注入共享洞察', () => {
+      const layer = new SharedCognitiveLayer();
+      layer.publishWorkerResult({
+        workerId: 'worker-0',
+        query: '分析技术风险',
+        summary: '主要风险：数据库瓶颈和并发问题',
+        keyFindings: ['数据库瓶颈', '并发问题'],
+        timestamp: Date.now(),
+      });
+
+      // 用精确 query 查询（中文 tokenizer 按空格分词，需整词匹配）
+      const result = layer.batchInjectContext('分析技术风险', {
+        maxInsights: 3,
+      });
+      expect(result).toContain('worker-0');
+      expect(result).toContain('数据库瓶颈');
+    });
+
+    it('detailed 格式输出关键发现', () => {
+      const layer = new SharedCognitiveLayer();
+      layer.publishWorkerResult({
+        workerId: 'worker-1',
+        query: '性能分析',
+        summary: '性能瓶颈在 I/O',
+        keyFindings: ['I/O 等待过长', '缓存命中率低'],
+        timestamp: Date.now(),
+      });
+
+      const result = layer.batchInjectContext('性能分析', {
+        maxInsights: 2,
+        format: 'detailed',
+      });
+      expect(result).toContain('I/O 等待过长');
+      expect(result).toContain('缓存命中率低');
+      expect(result).toContain('共享洞察');
+    });
+
+    it('无相关洞察时返回空字符串', () => {
+      const layer = new SharedCognitiveLayer();
+      const result = layer.batchInjectContext('不存在的话题', {
+        maxInsights: 3,
+      });
+      expect(result).toBe('');
     });
   });
 });

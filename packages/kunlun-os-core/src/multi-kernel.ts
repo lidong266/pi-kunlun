@@ -201,14 +201,9 @@ export class MultiKernelOrchestrator {
         try {
           const worker = this.workers[index % this.workers.length]!;
 
-          // partialReduce: 获取已完成的Worker洞察，注入到当前Worker的prompt
-          const partialInsights = partialReduce
-            ? this.shared.getSharedInsights(task.prompt, 2)
-            : [];
-          const insightsInjection = partialInsights.length > 0
-            ? `\n\n[已有 ${partialInsights.length} 个子任务完成分析，关键结论供参考]\n${
-                partialInsights.map((s, i) => `(${i + 1}) ${s.summary}`).join('\n')
-              }\n`
+          // partialReduce: 用 batchInjectContext 统一获取+格式化已完成Worker洞察
+          const insightsInjection = partialReduce
+            ? this.shared.batchInjectContext(task.prompt, { maxInsights: 2 })
             : '';
 
           // 构建增强 prompt：预取上下文 + 流式共享洞察
@@ -240,11 +235,11 @@ export class MultiKernelOrchestrator {
       .map((text, i) => `### 子任务${i + 1}: ${subTasks[i]!.prompt}\n${text}`)
       .join('\n\n');
 
-    // 注入共享洞察：获取与本查询相关的先完成 Worker 的关键发现
-    const relatedInsights = this.shared.getSharedInsights(query, 3);
-    const insightsText = relatedInsights.length > 0
-      ? `\n\n---\n跨 Worker 共享洞察（其他并行执行的结果）:\n${relatedInsights.map((ins, i) => `[${ins.workerId}] ${ins.summary}`).join('\n')}\n---\n`
-      : '';
+    // 注入共享洞察：用 batchInjectContext 统一格式化
+    const insightsText = this.shared.batchInjectContext(query, {
+      maxInsights: 3,
+      format: 'detailed',
+    });
 
     const reduceInput = reducePrompt
       ? `${reducePrompt}\n\n${insightsText}${subResultsText}`

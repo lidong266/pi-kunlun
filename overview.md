@@ -1,6 +1,34 @@
-# KunlunOS 微内核利用率优化 — v4 迭代总结
+# KunlunOS 微内核利用率优化 — v4 → v5 迭代总结
 
-## 改了什么
+## v5 新增：OpenHarmony 6 启发落地 (batchInjectContext + InsightEventBus)
+
+### 1. 批处理上下文注入 `batchInjectContext()`
+- **文件**: `shared-layer.ts`
+- `batchInjectContext(query, options)` — 统一入口格式化共享洞察
+- `compact` 格式（Map阶段）：简洁编号列表
+- `detailed` 格式（Reduce阶段）：含摘要+关键发现
+- **替代**: `multi-kernel.ts` 中两处碎片化 `filter(Boolean).join('\n')` 拼接
+
+### 2. Worker 事件总线 `InsightEventBus`
+- **新文件**: `insight-bus.ts`
+- 订阅/广播/getSince/getRecent — 跨核洞察主动通知
+- `publishWorkerResult` 后自动广播 `KeyFindingEvent`
+- 广播者自身不收到事件（避免回声）
+- KunlunOS 版"跨核中断信号"
+
+### 代码改动
+| 文件 | 变化 |
+|------|------|
+| `insight-bus.ts` (新) | +106 行 |
+| `shared-layer.ts` | +34 行 (batchInjectContext + eventBus 集成) |
+| `multi-kernel.ts` | -16/+6 行 (替换碎片化拼接) |
+| `index.ts` | +4 行 (导出 InsightEventBus) |
+| `multi-kernel-efficiency.test.ts` | +80 行 (8 新测试) |
+| **总计** | 5 文件, +246/-16 行 |
+
+---
+
+## v4：并发控制 + 流式增量 Reduce
 
 ### 1. 并发控制 (ConcurrencyController)
 - **文件**: `packages/kunlun-os-core/src/optimizations.ts`
@@ -34,19 +62,25 @@ v4: subTasks.map(fn) → ConcurrencyController.acquire()
      │                    ├─ collector.collect → onPartialResult → publishWorkerResult
      │                    └─ ConcurrencyController.release()
      └─ collector.waitAll → Reduce（上下文已预构建）
+
+v5: + batchInjectContext 统一格式化
+     + InsightEventBus 广播关键发现
+     Map阶段: batchInjectContext(task.prompt, {compact}) → 注入Worker
+     Reduce阶段: batchInjectContext(query, {detailed}) → 注入主Pi
+     Worker完成 → publishWorkerResult → eventBus.broadcast → 其他Worker被动收到通知
 ```
 
 ## 测试结果
 
-- **新增测试**: 6 项（ConcurrencyController x3 + StreamReduceCollector x2 + 增量Reduce x1）
-- **全量测试**: 879 tests / 36 files 全部通过
-- **构建**: 核心代码零类型错误（fork 的 `agent-harness.ts` 有预存类型问题，与此无关）
+- **全量测试**: 887 tests / 36 files 全部通过
+- **新增测试**: v4: 6项 | v5: 8项（InsightEventBus x5 + batchInjectContext x3）
 
 ## 收益量化
 
-| 指标 | v3 | v4 | 提升 |
-|------|----|----|------|
-| 并发控制 | 无（全部同时发） | 信号量限流 | 防止 LLM 过载 |
-| 流式Reduce | 等全部完成再汇总 | 完成即注入 | Reduce 上下文预构建 |
-| 跨核知识传递 | 仅 Reduce 阶段可见 | Map 阶段实时共享 | 后完成 Worker 可参考先完成结果 |
-| 可观测性 | 仅 elapsed | + concurrencyStats | 峰值/平均排队可监控 |
+| 指标 | v3 | v4 | v5 |
+|------|----|----|-----|
+| 并发控制 | 无 | 信号量限流 | 同v4 |
+| Reduce 方式 | 等全部 | 完成即注入 | 同v4 + 统一格式化 |
+| 跨核知识传递 | Reduce可见 | Map实时共享 | Map实时共享 + 事件广播 |
+| 上下文拼接 | 手动碎片 | 手动碎片 | batchInjectContext统一 |
+| 可观测性 | 仅elapsed | +concurrencyStats | +eventBus统计 |

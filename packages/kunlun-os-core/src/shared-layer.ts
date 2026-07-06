@@ -31,6 +31,8 @@ import { TernaryMemoryModel, ResonantMemoryNetwork } from '@kunlun/subsystems';
 import type { MemoryEntry } from '@kunlun/subsystems';
 import type { KnowledgeCard } from './eleven-bridges.js';
 import type { KunlunAnalysis } from './kunlun-os.js';
+import { InsightEventBus } from './insight-bus.js';
+import type { KeyFindingEvent } from './insight-bus.js';
 
 // ═══════════════════════════════════════════════════════════════
 // PromptNormalizer — 语义规范化 + 相似度
@@ -313,6 +315,8 @@ export class SharedCognitiveLayer {
   readonly analysisCache = new Map<string, KunlunAnalysis>();
   /** Worker 共享洞察 */
   readonly sharedInsights: WorkerSharedInsight[] = [];
+  /** 跨 Worker 事件总线（主动推送关键发现） */
+  readonly eventBus = new InsightEventBus();
 
   // 配置
   private fuzzyThreshold: number;
@@ -533,6 +537,17 @@ export class SharedCognitiveLayer {
     if (this.sharedInsights.length > this.maxInsights) {
       this.sharedInsights.shift();
     }
+
+    // 广播关键发现到事件总线（跨核主动通知）
+    if (insight.keyFindings.length > 0) {
+      this.eventBus.broadcast({
+        sourceWorkerId: insight.workerId,
+        finding: insight.keyFindings[0]!,
+        confidence: insight.keyFindings.length > 1 ? 0.8 : 0.6,
+        timestamp: insight.timestamp,
+        tags: this.normalizer.tokenize(insight.summary),
+      });
+    }
   }
 
   /**
@@ -552,6 +567,36 @@ export class SharedCognitiveLayer {
       .sort((a, b) => b.score - a.score || b.insight.timestamp - a.insight.timestamp)
       .slice(0, maxResults)
       .map(s => s.insight);
+  }
+
+  /**
+   * 批量上下文注入：一次性获取并格式化所有相关洞察
+   *
+   * 替代当前分散的 getSharedInsights + 手动拼接模式，
+   * 提供 compact（Map阶段）和 detailed（Reduce阶段）两种格式。
+   */
+  batchInjectContext(query: string, options?: {
+    maxInsights?: number;
+    format?: 'compact' | 'detailed';
+  }): string {
+    const maxInsights = options?.maxInsights ?? 5;
+    const insights = this.getSharedInsights(query, maxInsights);
+    const format = options?.format ?? 'compact';
+
+    if (insights.length === 0) return '';
+
+    if (format === 'compact') {
+      return `\n\n[共享洞察 — ${insights.length} 条先完成的分析供参考]\n${
+        insights.map((s, i) => `(${i + 1}) [${s.workerId}] ${s.summary}`).join('\n')
+      }\n`;
+    }
+
+    // 详细格式：适合 Reduce 阶段
+    return '\n\n---\n' + insights.map((ins, i) =>
+      `### 共享洞察 ${i + 1} (${ins.workerId})\n` +
+      `**摘要**: ${ins.summary}\n` +
+      `**关键发现**:\n${ins.keyFindings.map(f => `- ${f}`).join('\n')}`
+    ).join('\n\n') + '\n---\n';
   }
 
   /** 清空共享洞察 */
