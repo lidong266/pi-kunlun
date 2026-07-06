@@ -1,55 +1,72 @@
 /**
- * KunlunOS 多微内核调度器 — MultiKernelOrchestrator
+ * KunlunOS 多微内核调度器 v2 — 单用户认知并行
  *
- * 架构：
- *   KunlunOS
- *   └── MultiKernelOrchestrator
- *       ├── Pi 微内核池 (N 个 Pi 实例)
- *       │   ├── pi-main        (前台交互，优先级 HIGH)
- *       │   ├── pi-analysis-1  (后台分析，优先级 NORMAL)
- *       │   ├── pi-analysis-2  (后台分析，优先级 NORMAL)
- *       │   └── pi-daemon      (记忆归纳/进化，优先级 IDLE)
- *       │
- *       └── CogScheduler (三策略: EDF/HPF/Spiral)
- *           └── CogMultiInstanceManager
- *               └── CogIPC (跨实例通信)
+ * 一个人同时运行多个认知任务：
  *
- * 子代理模型：
- *   每个 Pi 微内核内部，工具调用可以并行执行（agent-loop 的 parallel mode）。
- *   子代理 = 同 session 内的并行工具调用线程。
- *   Pi 不管理子代理——这是 agent-loop 的 toolExecution: "parallel" 模式。
+ *   用户提问 "分析这个项目的技术方案"
+ *     │
+ *     ├─ 主 Pi (前台对话)          ← prompt → LLM → tool → ... → 回复
+ *     │   └─ 子代理线程池           ← 工具并行: read_file + web_search + grep
+ *     │
+ *     ├─ 子 Pi-1 (矛盾深度分析)    ← 独立 agent-loop: "从矛盾论角度分析X"
+ *     │   └─ 子代理线程池           ← 工具并行
+ *     │
+ *     ├─ 子 Pi-2 (桥2视角分析)     ← 独立 agent-loop: "从系统科学角度分析X"
+ *     │
+ *     ├─ 子 Pi-3 (反事实推演)      ← 独立 agent-loop: "如果Y发生会怎样"
+ *     │
+ *     └─ 守护 Pi (记忆整理)        ← 空闲时: "归纳今天的对话要点"
  *
- * 调度策略：
- *   1. 用户交互 → pi-main, CRITICAL 优先级
- *   2. 后台分析 → pi-analysis-N, NORMAL/HIGH 按矛盾优先级
- *   3. 记忆归纳 → pi-daemon, IDLE 优先级（空闲时运行）
- *   4. 工具调用 → 同 Pi 实例内 parallel 模式
+ * 每个 Pi = 完整 agent-loop (LLM调用 + 工具执行 + 认知注入)
+ * 每个 Pi 内部 = 子代理线程池 (工具并行执行)
+ * CogScheduler = EDF(用户等待) > HPF(矛盾紧急) > Spiral(收敛迭代) > IDLE(守护)
  */
 
-import { CogScheduler, CogMultiInstanceManager, CogIPC } from '@kunlun/cogkal';
-import { CogPriority, CogTaskStatus } from '@kunlun/cogkal';
+import { CogScheduler, CogMultiInstanceManager, CogIPC, CogPriority } from '@kunlun/cogkal';
 import type { CogTaskCB } from '@kunlun/cogkal';
 import { KunlunAgent } from './kunlun-agent.js';
 import type { KunlunAgentOptions } from './kunlun-agent.js';
-import type { AgentTool } from '@kunlun/pi-agent-core';
+import type { AssistantMessage } from '@earendil-works/pi-ai';
+import type { KunlunAnalysis } from './kunlun-os.js';
 
 // ═══════════════════════════════════════════════════════════════
-// Pi 微内核实例描述
+// Pi 内核描述
 // ═══════════════════════════════════════════════════════════════
 
-export interface PiKernelDescriptor {
-  /** 实例 ID */
+export interface PiKernel {
   id: string;
-  /** 角色 */
-  role: 'main' | 'analysis' | 'daemon' | 'custom';
-  /** Agent 实例 */
+  role: KernelRole;
   agent: KunlunAgent;
-  /** 调度优先级 */
-  basePriority: CogPriority;
-  /** 是否繁忙 */
-  busy: boolean;
-  /** 当前任务数 */
-  taskCount: number;
+  priority: CogPriority;
+  /** 当前正在执行的任务数（包括子代理线程） */
+  activeTaskCount: number;
+  /** 累计执行任务数 */
+  totalTaskCount: number;
+}
+
+export type KernelRole = 'main' | 'bridge' | 'counterfactual' | 'retrieval' | 'daemon';
+
+// ═══════════════════════════════════════════════════════════════
+// 认知任务
+// ═══════════════════════════════════════════════════════════════
+
+export interface CognitiveTask {
+  id: string;
+  type: 'user_prompt' | 'bridge_analysis' | 'counterfactual' | 'retrieval' | 'daemon';
+  /** 任务描述（作为 system prompt） */
+  description: string;
+  /** 用户输入（作为 user message） */
+  input: string;
+  /** 优先级 */
+  priority: CogPriority;
+  /** 截止时间 (ms) */
+  deadline: number;
+  /** 分配的桥（bridge 类型任务） */
+  bridgeId?: string;
+  /** 结果回调 */
+  onComplete?: (result: AssistantMessage) => void;
+  /** 分析回调 */
+  onAnalysis?: (analysis: KunlunAnalysis) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -57,245 +74,302 @@ export interface PiKernelDescriptor {
 // ═══════════════════════════════════════════════════════════════
 
 export interface KernelPoolConfig {
-  /** 分析内核数量（默认2） */
-  analysisKernels?: number;
-  /** 是否启用守护内核（默认 true） */
+  /** 桥分析内核数（每个桥一个Pi，并行多桥视角分析） */
+  bridgeKernels?: number;
+  /** 反事实推演内核数 */
+  counterfactualKernels?: number;
+  /** 检索内核数 */
+  retrievalKernels?: number;
+  /** 守护内核 */
   enableDaemon?: boolean;
-  /** 每个内核的最大并发任务数 */
-  maxTasksPerKernel?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MultiKernelOrchestrator
+// MultiKernelOrchestrator v2
 // ═══════════════════════════════════════════════════════════════
 
 export class MultiKernelOrchestrator {
   private scheduler: CogScheduler;
   private multiInstance: CogMultiInstanceManager;
-  private ipc: CogIPC;
-  private kernels: Map<string, PiKernelDescriptor> = new Map();
+  private kernels: Map<string, PiKernel> = new Map();
+  private taskQueue: CognitiveTask[] = [];
   private config: Required<KernelPoolConfig>;
   private baseOptions: KunlunAgentOptions;
+  private taskCounter = 0;
 
   constructor(baseOptions: KunlunAgentOptions, config: KernelPoolConfig = {}) {
     this.config = {
-      analysisKernels: config.analysisKernels ?? 2,
+      bridgeKernels: config.bridgeKernels ?? 3,
+      counterfactualKernels: config.counterfactualKernels ?? 1,
+      retrievalKernels: config.retrievalKernels ?? 1,
       enableDaemon: config.enableDaemon ?? true,
-      maxTasksPerKernel: config.maxTasksPerKernel ?? 4,
     };
     this.baseOptions = baseOptions;
-
     this.scheduler = new CogScheduler();
     this.multiInstance = new CogMultiInstanceManager(this.scheduler);
-    this.ipc = new CogIPC();
   }
 
   /**
    * 启动内核池
-   * 创建 1 个 main + N 个 analysis + 1 个 daemon
+   * 1 main + N bridge + M counterfactual + K retrieval + 1 daemon
    */
   async start(): Promise<void> {
-    // ── 主内核（前台交互） ──
-    await this.spawnKernel('main', {
-      ...this.baseOptions,
-      osConfig: { instanceId: 'kunlun-main' },
-    });
+    // 主内核
+    await this.spawnKernel('main', CogPriority.HIGH);
 
-    // ── 分析内核（后台并行分析） ──
-    for (let i = 0; i < this.config.analysisKernels; i++) {
-      await this.spawnKernel('analysis', {
-        ...this.baseOptions,
-        osConfig: { instanceId: `kunlun-analysis-${i}` },
-      });
+    // 桥分析内核（多桥并行）
+    for (let i = 0; i < this.config.bridgeKernels; i++) {
+      await this.spawnKernel('bridge', CogPriority.NORMAL);
     }
 
-    // ── 守护内核（记忆归纳/进化） ──
+    // 反事实推演内核
+    for (let i = 0; i < this.config.counterfactualKernels; i++) {
+      await this.spawnKernel('counterfactual', CogPriority.NORMAL);
+    }
+
+    // 检索内核
+    for (let i = 0; i < this.config.retrievalKernels; i++) {
+      await this.spawnKernel('retrieval', CogPriority.NORMAL);
+    }
+
+    // 守护内核
     if (this.config.enableDaemon) {
-      await this.spawnKernel('daemon', {
-        ...this.baseOptions,
-        osConfig: { instanceId: 'kunlun-daemon' },
-      });
+      await this.spawnKernel('daemon', CogPriority.IDLE);
     }
+
+    // 启动调度循环
+    this.scheduler.startGC();
   }
 
-  private async spawnKernel(
-    role: PiKernelDescriptor['role'],
-    options: KunlunAgentOptions,
-  ): Promise<PiKernelDescriptor> {
-    const instanceId = options.osConfig?.instanceId ?? `kunlun-${role}-${Date.now()}`;
-
+  private async spawnKernel(role: KernelRole, priority: CogPriority): Promise<PiKernel> {
+    const instanceId = `kunlun-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     await this.multiInstance.spawnInstance(instanceId);
 
-    const agent = new KunlunAgent(options);
+    const agent = new KunlunAgent({
+      ...this.baseOptions,
+      osConfig: { ...this.baseOptions.osConfig, instanceId },
+    });
     await agent.start();
 
-    const basePriority = role === 'main' ? CogPriority.HIGH
-      : role === 'analysis' ? CogPriority.NORMAL
-      : CogPriority.IDLE;
-
-    const desc: PiKernelDescriptor = {
-      id: instanceId,
-      role,
-      agent,
-      basePriority,
-      busy: false,
-      taskCount: 0,
-    };
-
-    this.kernels.set(instanceId, desc);
-    return desc;
+    const kernel: PiKernel = { id: instanceId, role, agent, priority, activeTaskCount: 0, totalTaskCount: 0 };
+    this.kernels.set(instanceId, kernel);
+    return kernel;
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 核心 API
+  // 核心 API — 任务分发
   // ═══════════════════════════════════════════════════════════
 
-  /**
-   * 获取主内核（前台交互用）
-   */
-  getMainKernel(): PiKernelDescriptor | undefined {
-    return this.findIdleKernel('main');
+  /** 用户主对话 */
+  async prompt(text: string): Promise<AssistantMessage> {
+    const kernel = this.getKernel('main');
+    return this.executeOnKernel(kernel, {
+      id: `user-${++this.taskCounter}`,
+      type: 'user_prompt',
+      description: '',
+      input: text,
+      priority: CogPriority.CRITICAL,
+      deadline: Date.now() + 30000,
+    });
   }
 
   /**
-   * 提交分析任务到最空闲的分析内核
+   * 多桥并行深度分析
+   * 将一个问题的不同桥视角分发到多个桥内核并行执行
    */
-  async submitAnalysisTask(
+  async analyzeFromBridges(
     query: string,
-    priority: CogPriority = CogPriority.NORMAL,
-  ): Promise<{ kernelId: string; result: any }> {
-    const kernel = this.findIdleKernel('analysis');
-    if (!kernel) {
-      throw new Error('No idle analysis kernel available');
-    }
-
-    kernel.busy = true;
-    kernel.taskCount++;
-
-    try {
-      // 创建认知任务
-      const task = this.scheduler.createTask({
-        name: `analysis-${query.substring(0, 20)}`,
-        type: 'think',
-        priority,
-        deadline: Date.now() + 60000, // 60s 超时
-        context: { input: query },
-        instanceId: kernel.id,
-        schedPolicy: {
-          type: 'contradiction-priority',
-          priority,
-          basePrio: kernel.basePriority,
-          timeSlice: 100,
-        },
-      });
-
-      this.scheduler.enqueueTask(task, kernel.id);
-
-      // 执行分析
-      const analysis = await kernel.agent.os.injectCognition(
-        [{ role: 'user', content: query }],
-        '',
-      );
-
-      return { kernelId: kernel.id, result: analysis };
-    } finally {
-      kernel.busy = false;
-      kernel.taskCount--;
-    }
-  }
-
-  /**
-   * 并行分析多个查询
-   * 自动分配到不同的分析内核
-   */
-  async analyzeParallel(queries: string[]): Promise<Array<{ query: string; kernelId: string; result: any }>> {
+    bridgeIds: string[],
+  ): Promise<Array<{ bridgeId: string; result: AssistantMessage }>> {
     const results = await Promise.all(
-      queries.map(q => this.submitAnalysisTask(q))
+      bridgeIds.map(async (bridgeId) => {
+        const kernel = this.getIdleKernel('bridge');
+        const result = await this.executeOnKernel(kernel, {
+          id: `bridge-${bridgeId}-${++this.taskCounter}`,
+          type: 'bridge_analysis',
+          description: `从${bridgeId}桥的学科视角，运用该桥的公理和学科卡分析以下问题。`,
+          input: query,
+          priority: CogPriority.NORMAL,
+          deadline: Date.now() + 60000,
+          bridgeId,
+        });
+        return { bridgeId, result };
+      })
     );
-    return queries.map((q, i) => ({
-      query: q,
-      kernelId: results[i]!.kernelId,
-      result: results[i]!.result,
-    }));
+    return results;
+  }
+
+  /** 反事实推演 */
+  async counterfactual(hypothesis: string): Promise<AssistantMessage> {
+    const kernel = this.getIdleKernel('counterfactual');
+    return this.executeOnKernel(kernel, {
+      id: `cf-${++this.taskCounter}`,
+      type: 'counterfactual',
+      description: '进行反事实推演：假设条件改变，推演可能的结果。',
+      input: hypothesis,
+      priority: CogPriority.NORMAL,
+      deadline: Date.now() + 60000,
+    });
+  }
+
+  /** 知识检索+总结 */
+  async retrieveAndSummarize(query: string): Promise<AssistantMessage> {
+    const kernel = this.getIdleKernel('retrieval');
+    return this.executeOnKernel(kernel, {
+      id: `retrieve-${++this.taskCounter}`,
+      type: 'retrieval',
+      description: '检索相关知识并生成摘要。',
+      input: query,
+      priority: CogPriority.NORMAL,
+      deadline: Date.now() + 30000,
+    });
+  }
+
+  /** 守护任务 */
+  async daemon(description: string, input: string): Promise<AssistantMessage | null> {
+    const kernel = this.getIdleKernel('daemon');
+    if (!kernel) return null;
+    return this.executeOnKernel(kernel, {
+      id: `daemon-${++this.taskCounter}`,
+      type: 'daemon',
+      description,
+      input,
+      priority: CogPriority.IDLE,
+      deadline: Date.now() + 120000,
+    });
   }
 
   /**
-   * 提交守护任务（记忆归纳等，空闲时运行）
+   * 一键深度分析：主对话 + 多桥分析 + 反事实 + 综合
+   * 这是单用户场景的核心价值——一个请求触发全内核并行
    */
-  async submitDaemonTask(name: string, fn: () => Promise<any>): Promise<any> {
-    const kernel = this.findIdleKernel('daemon');
-    if (!kernel) return null;
+  async deepAnalyze(query: string): Promise<{
+    mainReply: AssistantMessage;
+    bridgeAnalyses: Array<{ bridgeId: string; result: AssistantMessage }>;
+    counterfactualResult: AssistantMessage;
+    synthesis: string;
+  }> {
+    // 第一步：主 Pi 先做初步分析和桥路由
+    const mainKernel = this.getKernel('main');
+    const mainAnalysis = await mainKernel.agent.os.injectCognition(
+      [{ role: 'user', content: query }], ''
+    );
 
-    kernel.busy = true;
-    try {
-      return await fn();
-    } finally {
-      kernel.busy = false;
-    }
-  }
+    // 第二步：并行启动多桥分析 + 反事实推演
+    const activeBridges = mainAnalysis.bridge
+      ? [mainAnalysis.bridge.id]
+      : ['Q02', 'Q04', 'Q08'];
 
-  // ═══════════════════════════════════════════════════════════
-  // 查询
-  // ═══════════════════════════════════════════════════════════
+    const [bridgeAnalyses, counterfactualResult] = await Promise.all([
+      this.analyzeFromBridges(query, activeBridges.slice(0, this.config.bridgeKernels)),
+      this.counterfactual(`如果${query}的假设条件发生根本变化，结果会如何？`),
+    ]);
 
-  /** 获取所有内核状态 */
-  getKernelStatus(): Array<{ id: string; role: string; busy: boolean; tasks: number }> {
-    return [...this.kernels.values()].map(k => ({
-      id: k.id,
-      role: k.role,
-      busy: k.busy,
-      tasks: k.taskCount,
-    }));
-  }
+    // 第三步：主 Pi 回复用户（基于初步分析）
+    const mainReply = await this.prompt(query);
 
-  /** 获取调度器统计 */
-  getSchedulerStats() {
-    return this.scheduler.getStats();
-  }
+    // 第四步：综合多桥分析结果
+    const synthesis = [
+      `📍 主分析桥: ${mainAnalysis.bridge?.icon} ${mainAnalysis.bridge?.name}`,
+      `📊 多桥分析: ${bridgeAnalyses.map(b => b.bridgeId).join(', ')}`,
+      `🔄 反事实推演: 已完成`,
+      `📋 摘要: ${mainAnalysis.summary}`,
+    ].join('\n');
 
-  /** 关闭所有内核 */
-  stop(): void {
-    for (const kernel of this.kernels.values()) {
-      kernel.agent.stop();
-    }
-    this.kernels.clear();
-    this.scheduler.stopGC();
-    this.scheduler.reset();
+    return { mainReply, bridgeAnalyses, counterfactualResult, synthesis };
   }
 
   // ═══════════════════════════════════════════════════════════
   // 内部
   // ═══════════════════════════════════════════════════════════
 
-  private findIdleKernel(role: PiKernelDescriptor['role']): PiKernelDescriptor | undefined {
+  private async executeOnKernel(kernel: PiKernel, task: CognitiveTask): Promise<AssistantMessage> {
+    kernel.activeTaskCount++;
+    kernel.totalTaskCount++;
+
+    // 注册到调度器
+    const cogTask = this.scheduler.createTask({
+      name: task.id,
+      type: 'think',
+      priority: task.priority,
+      deadline: task.deadline,
+      context: { input: task.input },
+      instanceId: kernel.id,
+      schedPolicy: {
+        type: 'consensus-deadline',
+        deadline: task.deadline,
+        finishTime: 0,
+        period: 0,
+      },
+    });
+    this.scheduler.enqueueTask(cogTask, kernel.id);
+
+    try {
+      // 真正的 agent-loop：LLM 调用 + 工具执行 + 认知注入
+      const result = await kernel.agent.harness.prompt(
+        task.description
+          ? `${task.description}\n\n${task.input}`
+          : task.input
+      );
+
+      task.onComplete?.(result);
+
+      // 获取认知分析结果
+      const analysis = kernel.agent.getLatestAnalysis();
+      if (analysis) {
+        task.onAnalysis?.(analysis);
+      }
+
+      return result;
+    } finally {
+      kernel.activeTaskCount--;
+    }
+  }
+
+  private getKernel(role: KernelRole): PiKernel {
+    const kernel = this.getIdleKernel(role);
+    if (!kernel) throw new Error(`No ${role} kernel available`);
+    return kernel;
+  }
+
+  private getIdleKernel(role: KernelRole): PiKernel | undefined {
     const candidates = [...this.kernels.values()]
       .filter(k => k.role === role)
-      .sort((a, b) => a.taskCount - b.taskCount);
+      .sort((a, b) => a.activeTaskCount - b.activeTaskCount);
 
-    // 找最空闲的
-    for (const k of candidates) {
-      if (!k.busy && k.taskCount < this.config.maxTasksPerKernel) {
-        return k;
-      }
-    }
+    return candidates[0];
+  }
 
-    // 全忙时找任务最少的
-    if (candidates.length > 0) {
-      return candidates[0];
-    }
+  // ═══════════════════════════════════════════════════════════
+  // 查询
+  // ═══════════════════════════════════════════════════════════
 
-    return undefined;
+  getKernelStatus(): Array<{ id: string; role: string; active: number; total: number; priority: string }> {
+    return [...this.kernels.values()].map(k => ({
+      id: k.id,
+      role: k.role,
+      active: k.activeTaskCount,
+      total: k.totalTaskCount,
+      priority: CogPriority[k.priority] ?? 'UNKNOWN',
+    }));
+  }
+
+  getSchedulerStats() {
+    return this.scheduler.getStats();
+  }
+
+  stop(): void {
+    for (const k of this.kernels.values()) k.agent.stop();
+    this.kernels.clear();
+    this.scheduler.stopGC();
+    this.scheduler.reset();
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 便捷工厂
+// 工厂
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * 创建默认的多内核编排器
- * 1 main + 2 analysis + 1 daemon = 4 个 Pi 微内核
- */
 export async function createOrchestrator(
   options: KunlunAgentOptions,
   config?: KernelPoolConfig,
