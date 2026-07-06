@@ -69,7 +69,11 @@ export type { KunlunAgentOptions } from './kunlun-agent';
 
 // ─── 多微内核调度器 ───
 export { MultiKernelOrchestrator, createOrchestrator } from './multi-kernel.js';
-export type { PiKernelDescriptor, KernelPoolConfig } from './multi-kernel.js';
+export type { PiKernelDescriptor, KernelPoolConfig, SubTask, SubTaskResult } from './multi-kernel.js';
+
+// ─── 共享认知层 ───
+export { SharedCognitiveLayer, LLMResponseCache } from './shared-layer.js';
+export type { SharedLayerConfig } from './shared-layer.js';
 
 // ─── CLI 入口 ───
 export { KunlunCLI } from './cli';

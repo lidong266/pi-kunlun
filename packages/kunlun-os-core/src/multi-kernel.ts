@@ -23,6 +23,8 @@ import { KunlunAgent } from './kunlun-agent.js';
 import type { KunlunAgentOptions } from './kunlun-agent.js';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
 import type { KunlunAnalysis } from './kunlun-os.js';
+import { SharedCognitiveLayer } from './shared-layer.js';
+import type { SharedLayerConfig } from './shared-layer.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 子任务
@@ -61,19 +63,22 @@ export interface KernelPoolConfig {
 export class MultiKernelOrchestrator {
   private scheduler: CogScheduler;
   private multiInstance: CogMultiInstanceManager;
+  /** 共享认知层（所有 Pi 共享 Token/缓存/记忆） */
+  readonly shared: SharedCognitiveLayer;
   /** 主 Pi */
   private main: KunlunAgent;
   /** 工作 Pi 池 */
   private workers: KunlunAgent[] = [];
   private config: Required<KernelPoolConfig>;
 
-  constructor(options: KunlunAgentOptions, config: KernelPoolConfig = {}) {
+  constructor(options: KunlunAgentOptions, config: KernelPoolConfig = {}, sharedConfig?: SharedLayerConfig) {
     this.config = {
       workers: config.workers ?? 3,
       shareSession: config.shareSession ?? true,
     };
     this.scheduler = new CogScheduler();
     this.multiInstance = new CogMultiInstanceManager(this.scheduler);
+    this.shared = new SharedCognitiveLayer(sharedConfig);
     this.main = new KunlunAgent(options);
   }
 
@@ -159,19 +164,32 @@ export class MultiKernelOrchestrator {
   async deepAnalyze(query: string): Promise<{
     analysis: KunlunAnalysis;
     mapReduceResult: Awaited<ReturnType<typeof this.mapReduce>>;
+    fromCache: boolean;
   }> {
-    // 第一步: 认知拆解 (纯本地，~20ms)
-    const analysis = await this.main.os.injectCognition(
+    // 检查分析缓存
+    const cachedAnalysis = this.shared.getCachedAnalysis(query);
+    const analysis = cachedAnalysis ?? await this.main.os.injectCognition(
       [{ role: 'user', content: query }], ''
     );
 
-    // 第二步: 根据矛盾分析自动拆解子任务
+    // 缓存分析结果
+    if (!cachedAnalysis) {
+      this.shared.cacheAnalysis(query, analysis);
+    }
+
+    // 根据矛盾分析自动拆解子任务
     const subTasks = this.decomposeFromAnalysis(query, analysis);
 
-    // 第三步: MapReduce
+    // MapReduce（子 Pi 的结果会自动写入共享记忆）
     const mrResult = await this.mapReduce(query, subTasks);
 
-    return { analysis, mapReduceResult: mrResult };
+    // 写入共享记忆
+    this.shared.writeMemory(
+      `分析: ${query} → ${analysis.summary}`,
+      analysis.knowledgeCards?.map(c => c.id) ?? [],
+    );
+
+    return { analysis, mapReduceResult: mrResult, fromCache: !!cachedAnalysis };
   }
 
   // ═══════════════════════════════════════════════════════════
