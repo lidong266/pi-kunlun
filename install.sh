@@ -100,6 +100,53 @@ verify() {
   fi
 }
 
+# ── 5.5 链接全局 kl 命令 ────────────────────────────
+# 让用户在任意目录直接输入 `kl` 即可启动（机制与 `pi` 一致）：
+# `pi` 是已发布的 npm 包，npm 会把它的 bin 链接进 PATH；
+# 昆仑OS 是私有 workspace，pnpm install 只把 kl 链到仓库内的
+# node_modules/.bin，不会进入全局 PATH。这里在 PATH 目录放置一个
+# wrapper，内部用仓库绝对路径调用本地 tsx，从而可从任意 cwd 启动。
+link_cli() {
+  local repo_root
+  repo_root="$(pwd)"
+  local launcher="${repo_root}/packages/kunlun-os-core/bin/kunlun.mjs"
+  local tsx_bin="${repo_root}/node_modules/.bin/tsx"
+
+  # 在 PATH 中选一个可写 bin 目录；都没有则建 ~/bin 并提示加 PATH
+  local bin_dir=""
+  for d in /usr/local/bin /usr/bin "$HOME/.local/bin" "$HOME/bin"; do
+    if [ -d "$d" ] && [ -w "$d" ]; then bin_dir="$d"; break; fi
+  done
+  if [ -z "$bin_dir" ]; then
+    bin_dir="$HOME/bin"
+    mkdir -p "$bin_dir"
+    case ":$PATH:" in
+      *":$bin_dir:"*) ;;
+      *) echo "   ⚠️ $bin_dir 不在 PATH 中，请将其加入 shell 配置: export PATH=\"$bin_dir:\$PATH\"" ;;
+    esac
+  fi
+
+  local wrapper="${bin_dir}/kl"
+  cat > "$wrapper" <<WRAP_EOF
+#!/usr/bin/env bash
+# 昆仑OS 全局启动器（由 install.sh 自动生成，请勿手动修改）
+# 仓库位置: ${repo_root}
+REPO="${repo_root}"
+LAUNCHER="${launcher}"
+TSX="${tsx_bin}"
+if [ ! -x "\$TSX" ]; then TSX="npx tsx"; fi
+cd "\$REPO" || exit 1
+if [ "\$TSX" = "npx tsx" ]; then
+  exec npx tsx "\$LAUNCHER" "\$@"
+else
+  exec "\$TSX" "\$LAUNCHER" "\$@"
+fi
+WRAP_EOF
+  chmod +x "$wrapper"
+  echo "✅ 已创建全局命令: ${wrapper}"
+  echo "   现在可在任意目录直接输入: kl"
+}
+
 main() {
   check_node
   ensure_pnpm
@@ -107,11 +154,20 @@ main() {
   install_deps
   build_packages
   verify
+  link_cli
   echo ""
-  echo "🎉 安装完成！在终端（TTY）中运行以查看鸿蒙6风格启动动画："
-  echo "   npx tsx packages/kunlun-os-core/bin/kunlun.mjs boot"
-  echo "   npx tsx packages/kunlun-os-core/bin/kunlun.mjs analyze \"你的认知分析文本\""
-  echo "   npx tsx packages/kunlun-os-core/bin/kunlun.mjs bridges"
+  echo "🎉 安装完成！现在可直接在终端输入 kl 启动（任意目录均可）："
+  echo "   kl boot                          # 查看鸿蒙6风格启动动画"
+  echo "   kl analyze \"性能和成本如何权衡\""
+  echo "   kl bridges"
+  echo ""
+  echo "   LLM 交互模式（需先设 API Key）："
+  echo "     export KUNLUN_API_KEY=sk-xxx"
+  echo "     export KUNLUN_MODEL_PROVIDER=deepseek"
+  echo "     export KUNLUN_MODEL_ID=deepseek-v4-flash"
+  echo "     kl"
+  echo ""
+  echo "   备用（仓库内）长命令：npx tsx packages/kunlun-os-core/bin/kunlun.mjs boot"
   echo ""
   echo "提示: 若 pnpm 报 'must be a string without null bytes'，是 ~/.npmrc 被保存为"
   echo "      UTF-16 编码所致，转成 UTF-8 (iconv -f UTF-16 -t UTF-8 ~/.npmrc > ~/.npmrc.utf8) 即可。"

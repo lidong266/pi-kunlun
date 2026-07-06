@@ -11,6 +11,10 @@
  *   - 启动完成统计摘要
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 // ═══════════════════════════════════════════════════════════════
 // ANSI 颜色常量
 // ═══════════════════════════════════════════════════════════════
@@ -35,7 +39,30 @@ const C = {
 // 常量
 // ═══════════════════════════════════════════════════════════════
 
-const VERSION = '0.5.0';
+/**
+ * 版本号：从仓库根 package.json 动态读取，避免硬编码导致启动动画显示错误版本。
+ * 仓库根 package.json 的 name 为 "pi-kunlun"，其 version 即昆仑OS 发布版本号。
+ */
+function resolveOsVersion(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 8; i++) {
+    const pkgPath = join(dir, 'package.json');
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { name?: string; version?: string };
+      if (pkg.name === 'pi-kunlun' && pkg.version) return pkg.version;
+    } catch {
+      // 该层无 package.json 或读取失败，继续向上查找
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return '0.9.0';
+}
+
+/** 昆仑OS 版本号（来自根 package.json，单一事实来源） */
+export const OS_VERSION = resolveOsVersion();
+const VERSION = OS_VERSION;
 const BOX_WIDTH = 50;
 
 /** 阶段名称映射 */

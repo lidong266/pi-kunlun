@@ -34,6 +34,7 @@ import { createContradictionEngine } from '@kunlun/contradiction';
 import type { ContradictionPair, Proposition, Evidence, ContradictionAnalysisOutput } from '@kunlun/contradiction';
 import { T_TRUE, T_FALSE, T_UNKNOWN, TRYTE_ZERO } from '@kunlun/ternary';
 import type { Trit, Tryte } from '@kunlun/ternary';
+import { OS_VERSION } from './boot-animation.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 工具函数
@@ -172,7 +173,7 @@ export class CognitiveCLI {
         case 'version':
         case '--version':
         case '-v':
-          console.log('昆仑OS (KunlunOS) Cognitive CLI v0.9.0');
+          console.log(`昆仑OS (KunlunOS) Cognitive CLI v${OS_VERSION}`);
           return 0;
         default:
           console.error(`未知命令: ${cmd}`);
