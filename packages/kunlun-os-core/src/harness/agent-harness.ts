@@ -15,7 +15,7 @@ import { collectEntriesForBranchSummary, generateBranchSummary } from "./compact
 import { compact, DEFAULT_COMPACTION_SETTINGS, prepareCompaction } from "./compaction/compaction.js";
 import { convertToLlm } from "./messages.js";
 import { formatPromptTemplateInvocation } from "./prompt-templates.js";
-import { formatSkillInvocation } from "./skills.js";
+import { formatSkillInvocation } from "@kunlun/pi-agent-core";
 import type {
 	AbortResult,
 	AgentHarnessEvent,

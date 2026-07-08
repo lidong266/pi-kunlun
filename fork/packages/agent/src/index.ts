@@ -5,6 +5,7 @@ export * from "./types.js";
 
 // ─── 微内核：Agent Harness (运行时框架) ───
 export * from "./harness/types.js";
+export * from "./harness/skills.js";
 
 // ─── 微内核：LLM 代理 ───
 export * from "./proxy.js";
