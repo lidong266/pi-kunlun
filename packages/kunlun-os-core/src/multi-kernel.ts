@@ -23,7 +23,7 @@
  *     后续Worker的prompt自动包含已完成的洞察，实现跨核知识传递
  */
 
-import { CogScheduler, CogMultiInstanceManager, CogPriority } from '@kunlun/cogkal';
+import { CogScheduler, CogMultiInstanceManager, CogPriority } from './cog/kal';
 import { KunlunAgent } from './kunlun-agent.js';
 import type { KunlunAgentOptions } from './kunlun-agent.js';
 import type { AssistantMessage } from '@earendil-works/pi-ai';

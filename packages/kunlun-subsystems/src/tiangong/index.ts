@@ -97,6 +97,17 @@ export class ConfidenceTagRenderer {
     return CONFIDENCE_TAGS['0'];
   }
 
+  /**
+   * 连续置信度分级（天工渲染增强）：把 0-1 共识置信度映射为可读等级，
+   * 让三元信度不再是固定"待验证"，而反映"系统有多确定"（大成智慧学约束4 不夸大）。
+   */
+  getConfidenceGrade(confidence: number): { grade: string; symbol: string; note: string } {
+    if (confidence >= 0.75) return { grade: '强共识', symbol: '✓', note: '多数角色有明确立场，置信高' };
+    if (confidence >= 0.5) return { grade: '中共识', symbol: '~', note: '部分角色有立场，可参考' };
+    if (confidence >= 0.25) return { grade: '弱共识', symbol: '?', note: '少数角色有立场，初步判断' };
+    return { grade: '待定', symbol: '⏳', note: '角色普遍未定位，需进一步验证或补卡' };
+  }
+
   getAvailableTags(): ConfidenceTag[] {
     return Object.values(CONFIDENCE_TAGS);
   }

@@ -15,18 +15,18 @@
 import type { KunlunOSConfig, BootPhaseLog } from './types';
 import { BootAnimator } from './boot-animation';
 
-import { CogScheduler, CogMultiInstanceManager, CogIPC } from '@kunlun/cogkal';
-import { CognEventBus } from '@kunlun/cogbus';
-import { CogAlgorithmRegistry } from '@kunlun/cog-algo';
-import { CogCapabilityRegistry } from '@kunlun/cog-capability';
-import type { CogCapabilityProvider } from '@kunlun/cog-capability';
-import { TrustManager } from '@kunlun/cog-trust';
-import { TokenManager, AttentionScheduler } from '@kunlun/cog-memory';
-import { CognitivePipeline } from '@kunlun/cog-pipeline';
-import { CogProcessManager } from '@kunlun/cog-process';
-import { HumanChannel } from '@kunlun/cog-human';
-import { MetaSynthesisEngine, MetaSynthesisWorkshop } from '@kunlun/cog-metasynthesis';
-import { CogTaskExecutor } from '@kunlun/cog-executor';
+import { CogScheduler, CogMultiInstanceManager, CogIPC } from './cog/kal';
+import { CognEventBus } from './cog/bus';
+import { CogAlgorithmRegistry } from './cog/algo';
+import { CogCapabilityRegistry } from './cog/capability';
+import type { CogCapabilityProvider } from './cog/capability';
+import { TrustManager } from './cog/trust';
+import { TokenManager, AttentionScheduler } from './cog/memory';
+import { CognitivePipeline } from './cog/pipeline';
+import { CogProcessManager } from './cog/process';
+import { HumanChannel } from './cog/human';
+import { MetaSynthesisEngine, MetaSynthesisWorkshop } from './cog/metasynthesis';
+import { CogTaskExecutor } from './cog/executor';
 
 // ═══════════════════════════════════════════════════════════════
 // BootResult — 引导完成后的子系统实例集合

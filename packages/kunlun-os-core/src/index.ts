@@ -10,17 +10,17 @@
  *   - @kunlun/spiral — 实践螺旋引擎
  *   - @kunlun/pw — 持久战策略引擎
  *   - @kunlun/ocgs — 开放复杂巨系统自适应层
- *   - @kunlun/cog-metasynthesis — 大成智慧学综合集成
- *   - @kunlun/cogkal — 认知内核调度器
- *   - @kunlun/cogbus — 认知事件总线
- *   - @kunlun/cog-algo — 算法插件注册
- *   - @kunlun/cog-capability — 认知能力注册
- *   - @kunlun/cog-trust — 信任管理
- *   - @kunlun/cog-memory — Token/记忆管理
- *   - @kunlun/cog-pipeline — 七层流管道
- *   - @kunlun/cog-process — 认知进程管理
- *   - @kunlun/cog-human — 人类节点通道
- *   - @kunlun/cog-executor — 认知执行引擎
+ *   - ./cog/metasynthesis — 大成智慧学综合集成
+ *   - ./cog/kal — 认知内核调度器
+ *   - ./cog/bus — 认知事件总线
+ *   - ./cog/algo — 算法插件注册
+ *   - ./cog/capability — 认知能力注册
+ *   - ./cog/trust — 信任管理
+ *   - ./cog/memory — Token/记忆管理
+ *   - ./cog/pipeline — 七层流管道
+ *   - ./cog/process — 认知进程管理
+ *   - ./cog/human — 人类节点通道
+ *   - ./cog/executor — 认知执行引擎
  *   - @kunlun/ternary — 三进制数学底座
  *
  * OS 核心自有模块：
@@ -90,6 +90,7 @@ export { CognitiveCLI, runCognitiveCli } from './cognitive-cli';
 export {
   ELEVEN_BRIDGES,
   routeToBridge,
+  routeToBridges,
   getBridgeCards,
   getBridgeAxiom,
   getAllBridgeIds,
@@ -99,6 +100,36 @@ export type {
   BridgeProfile,
   KnowledgeCard,
 } from './eleven-bridges';
+export {
+  analyzeBridgeDualAxis,
+  liangZhiAnalyze,
+  xingZhiAnalyze,
+  mergeAxisOpinion,
+} from './bridge-agent';
+export type {
+  AxisOpinion,
+  BridgeDualAxis,
+} from './bridge-agent';
+export {
+  runLongmen,
+  proposeDraft,
+  verifyDraft,
+  promoteDraft,
+  detectMissingBridge,
+  getLongmenDrafts,
+} from './longmen';
+export type {
+  LongmenDraft,
+} from './longmen';
+export {
+  requestHumanReview,
+  applyHumanVerdict,
+} from './human-in-loop';
+export type {
+  HumanReview,
+  MachineConsensusDraft,
+  HumanVerdict,
+} from './human-in-loop';
 
 // ─── Harness 层（从 Pi 迁移来的上层功能） ───
 export { AgentHarness } from './harness/agent-harness.js';

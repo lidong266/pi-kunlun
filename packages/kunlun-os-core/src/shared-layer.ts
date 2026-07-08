@@ -26,7 +26,7 @@
  *   语义去重额外节省: ~15-25% (相似查询命中)
  */
 
-import { TokenManager } from '@kunlun/cog-memory';
+import { TokenManager } from './cog/memory';
 import { TernaryMemoryModel, ResonantMemoryNetwork } from '@kunlun/subsystems';
 import type { MemoryEntry } from '@kunlun/subsystems';
 import type { KnowledgeCard } from './eleven-bridges.js';

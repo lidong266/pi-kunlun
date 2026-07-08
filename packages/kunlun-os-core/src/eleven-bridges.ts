@@ -1,5 +1,6 @@
 /**
  * 十一桥知识卡片系统 — 大成智慧学的知识基础设施
+ * [成熟度: 种子期→成长期] 当前 33 张种子卡 + 龙门补录草稿；专家资格锚定归藏卡（约束6）
  *
  * 钱学森大成智慧学将人类知识体系通过 11 座学科桥梁连接：
  *   马克思主义哲学
@@ -174,18 +175,23 @@ export const ELEVEN_BRIDGES: BridgeProfile[] = [
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * 根据文本内容路由到最匹配的学科桥
- * 使用关键词加权匹配，长关键词权重更高，且跨桥关键词有竞争衰减
+ * 多桥路由：返回命中的桥集合（按分数降序），而非 argmax 单桥。
+ *
+ * 大成智慧学原则：一个问题往往跨多个学科部门（如"追求性能还是保证成本"
+ * 同时触及 Q04 系统科学、Q02 社会科学、Q08 行为科学），应**命中所有相关桥**
+ * 而非强行归并到一座。故改为返回分数超过阈值的全部桥，供上层做会商式集成。
+ *
+ * @param text      待路由文本
+ * @param threshold 命中阈值（关键词加权分），默认 2
+ * @returns 命中的桥（含分数），降序排列；至少返回 1 座（兜底取最高分桥）
  */
-export function routeToBridge(text: string): BridgeProfile {
+export function routeToBridges(text: string, threshold = 2): Array<{ bridge: BridgeProfile; score: number }> {
   const lower = text.toLowerCase();
-  let bestBridge = ELEVEN_BRIDGES[3]!; // 默认 Q04 系统科学
-  let bestScore = 0;
 
   // 通用高频词（降低权重，避免泛化误匹配）
   const genericWords = new Set(['系统', '架构', '设计', '结构', '组织', '管理', '优化', '分析', '实现', '构建', '模块', '工程', '复杂']);
 
-  for (const bridge of ELEVEN_BRIDGES) {
+  const scored = ELEVEN_BRIDGES.map(bridge => {
     let score = 0;
     for (const kw of bridge.keywords) {
       if (lower.includes(kw.toLowerCase())) {
@@ -195,27 +201,36 @@ export function routeToBridge(text: string): BridgeProfile {
         score += weight;
       }
     }
-    if (score > bestScore) {
-      bestScore = score;
-      bestBridge = bridge;
-    }
-  }
+    return { bridge, score };
+  });
 
-  // 兜底：如果最高分太低（< 2），尝试关键词组合
-  if (bestScore < 2) {
-    // 检查是否含矛盾/冲突词 → Q02 社会科学
+  // 取超过阈值的全部桥；若全低于阈值，则用兜底规则补 1 座，否则取最高分
+  let hits = scored.filter(s => s.score >= threshold);
+  if (hits.length === 0) {
+    // 兜底：矛盾/冲突词 → Q02 社会科学
     if (/矛盾|冲突|权衡|取舍|困境|两难/.test(lower)) {
-      const q02 = ELEVEN_BRIDGES[1]!;
-      return q02;
+      hits = [{ bridge: ELEVEN_BRIDGES[1]!, score: threshold }];
     }
-    // 检查是否含学习/反思 → Q05 思维科学
-    if (/学习|反思|认知|思维|推理/.test(lower)) {
-      const q05 = ELEVEN_BRIDGES[4]!;
-      return q05;
+    // 学习/反思 → Q05 思维科学
+    else if (/学习|反思|认知|思维|推理/.test(lower)) {
+      hits = [{ bridge: ELEVEN_BRIDGES[4]!, score: threshold }];
+    }
+    // 否则取分数最高的一座（保证至少 1 座，默认 Q04 系统科学）
+    else {
+      const top = scored.reduce((a, b) => (b.score > a.score ? b : a), { bridge: ELEVEN_BRIDGES[3]!, score: 0 });
+      hits = [top];
     }
   }
 
-  return bestBridge;
+  return hits.sort((a, b) => b.score - a.score);
+}
+
+/**
+ * 兼容单桥接口：返回命中的主桥（多桥路由结果的第一座）。
+ * @deprecated 新代码请用 routeToBridges 获取命中桥集合
+ */
+export function routeToBridge(text: string): BridgeProfile {
+  return routeToBridges(text)[0]!.bridge;
 }
 
 /**

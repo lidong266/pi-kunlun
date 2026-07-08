@@ -27,7 +27,7 @@ importers:
         specifier: ^3.3.0
         version: 3.9.4
       tsx:
-        specifier: '4'
+        specifier: ^4.23.0
         version: 4.23.0
       typescript:
         specifier: ^5.5.0
@@ -94,102 +94,6 @@ importers:
         specifier: 4.1.9
         version: 4.1.9(@opentelemetry/api@1.9.0)(@types/node@24.12.4)(@vitest/coverage-v8@4.1.9)(vite@5.4.21(@types/node@24.12.4))
 
-  packages/kunlun-cog-algo:
-    dependencies:
-      '@kunlun/contradiction':
-        specifier: workspace:*
-        version: link:../kunlun-contradiction
-      '@kunlun/ocgs':
-        specifier: workspace:*
-        version: link:../kunlun-ocgs
-      '@kunlun/pw':
-        specifier: workspace:*
-        version: link:../kunlun-pw
-      '@kunlun/spiral':
-        specifier: workspace:*
-        version: link:../kunlun-spiral
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-capability:
-    dependencies:
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-executor:
-    dependencies:
-      '@kunlun/cogkal':
-        specifier: workspace:*
-        version: link:../kunlun-cogkal
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-human:
-    dependencies:
-      '@kunlun/cogkal':
-        specifier: workspace:*
-        version: link:../kunlun-cogkal
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-memory:
-    dependencies:
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-metasynthesis:
-    dependencies:
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-pipeline:
-    dependencies:
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-process:
-    dependencies:
-      '@kunlun/cog-pipeline':
-        specifier: workspace:*
-        version: link:../kunlun-cog-pipeline
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cog-trust:
-    dependencies:
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cogbus:
-    dependencies:
-      '@kunlun/cogkal':
-        specifier: workspace:*
-        version: link:../kunlun-cogkal
-      '@kunlun/eventbus':
-        specifier: workspace:*
-        version: link:../kunlun-eventbus
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
-  packages/kunlun-cogkal:
-    dependencies:
-      '@kunlun/eventbus':
-        specifier: workspace:*
-        version: link:../kunlun-eventbus
-      '@kunlun/ternary':
-        specifier: workspace:*
-        version: link:../kunlun-ternary
-
   packages/kunlun-contradiction:
     dependencies:
       '@kunlun/eventbus':
@@ -222,39 +126,6 @@ importers:
       '@earendil-works/pi-ai':
         specifier: ^0.80.3
         version: 0.80.3(ws@8.21.0)(zod@4.4.3)
-      '@kunlun/cog-algo':
-        specifier: workspace:*
-        version: link:../kunlun-cog-algo
-      '@kunlun/cog-capability':
-        specifier: workspace:*
-        version: link:../kunlun-cog-capability
-      '@kunlun/cog-executor':
-        specifier: workspace:*
-        version: link:../kunlun-cog-executor
-      '@kunlun/cog-human':
-        specifier: workspace:*
-        version: link:../kunlun-cog-human
-      '@kunlun/cog-memory':
-        specifier: workspace:*
-        version: link:../kunlun-cog-memory
-      '@kunlun/cog-metasynthesis':
-        specifier: workspace:*
-        version: link:../kunlun-cog-metasynthesis
-      '@kunlun/cog-pipeline':
-        specifier: workspace:*
-        version: link:../kunlun-cog-pipeline
-      '@kunlun/cog-process':
-        specifier: workspace:*
-        version: link:../kunlun-cog-process
-      '@kunlun/cog-trust':
-        specifier: workspace:*
-        version: link:../kunlun-cog-trust
-      '@kunlun/cogbus':
-        specifier: workspace:*
-        version: link:../kunlun-cogbus
-      '@kunlun/cogkal':
-        specifier: workspace:*
-        version: link:../kunlun-cogkal
       '@kunlun/contradiction':
         specifier: workspace:*
         version: link:../kunlun-contradiction

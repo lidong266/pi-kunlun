@@ -19,8 +19,8 @@ import { createContradictionEngine } from '@kunlun/contradiction';
 import type { ContradictionEngine } from '@kunlun/contradiction';
 import { PracticeSpiralEngine } from '@kunlun/spiral';
 import { ProtractedWarEngine } from '@kunlun/pw';
-import { MetaSynthesisEngine } from '@kunlun/cog-metasynthesis';
-import type { SynthesisParticipant } from '@kunlun/cog-metasynthesis';
+import { MetaSynthesisEngine } from './cog/metasynthesis';
+import type { SynthesisParticipant } from './cog/metasynthesis';
 import {
   ConfidenceTagRenderer,
   ContradictionVisualizer,
@@ -38,11 +38,24 @@ import type { BootResult } from './boot';
 // ─── 大成智慧学：十一桥 ───
 import {
   routeToBridge,
+  routeToBridges,
   getBridgeCards,
   getBridgeAxiom,
   type BridgeProfile,
   type KnowledgeCard,
 } from './eleven-bridges.js';
+import {
+  analyzeBridgeDualAxis,
+  type BridgeDualAxis,
+} from './bridge-agent.js';
+import {
+  runLongmen,
+} from './longmen.js';
+import {
+  requestHumanReview,
+  type HumanReview,
+  type MachineConsensusDraft,
+} from './human-in-loop.js';
 
 // ─── 认知分析结果 ──────────────────────────────────────────
 
@@ -55,12 +68,34 @@ export interface KunlunAnalysis {
   memoryContext?: string;
   ecosystemHealth?: Trit;
   summary: string;
-  /** 大成智慧学：路由到的学科桥 */
+  /** 大成智慧学：路由到的主桥（多桥命中中的第一座，向后兼容） */
   bridge?: { id: string; name: string; icon: string; axiom: string };
+  /** 大成智慧学：命中的全部学科桥（多桥会商） */
+  bridges?: Array<{ id: string; name: string; icon: string; axiom: string }>;
   /** 大成智慧学：加载的知识卡片 */
   knowledgeCards?: Array<{ id: string; title: string; type: string }>;
   /** 大成智慧学：综合集成结果 */
   synthesis?: { stance: string; confidence: number };
+  /** 大成智慧学：双轴子代理意见（每座命中桥的量智+性智） */
+  dualAxes?: Array<{
+    bridgeId: string; bridgeName: string; icon: string;
+    liangZhi: { stance: number; reasoning: string; confidence: number; cards: string[] };
+    xingZhi: { stance: number; reasoning: string; confidence: number; cards: string[] };
+  }>;
+  /** 大成智慧学：龙门补录（知识自进化草稿） */
+  longmen?: { detected: boolean; drafts: Array<{
+    id: string; bridgeId: string; layer: string; type: string;
+    title: string; content: string; sourceBasis: string; confidence: number; status: string;
+  }> };
+  /** 大成智慧学：人以为主裁决（机器草案 + 人的最终裁决） */
+  humanReview?: {
+    status: string;
+    draftStance: string;
+    draftConfidence: number;
+    finalStance?: string;
+    humanNote?: string;
+    decidedBy?: string;
+  };
   /** 天工渲染：三元信度标注输出 */
   rendered?: { overallConfidence: string; summary: string };
   /** 注入到 LLM system prompt 的格式化文本 */
@@ -274,10 +309,17 @@ export class KunlunOS {
 
     if (!queryText) return this.emptyAnalysis();
 
-    // ── 阶段1：十一桥路由 ──
-    const bridge = routeToBridge(queryText);
+    // ── 阶段1：十一桥多桥路由 ──
+    // 大成智慧学：问题常跨多个学科部门，命中所有相关桥而非归并到一座
+    const bridgeHits = routeToBridges(queryText);
+    const bridge = bridgeHits[0]!.bridge;           // 主桥（兼容）
     const axiom = getBridgeAxiom(bridge.id);
-    const cards = getBridgeCards(bridge.id);
+    // 合并所有命中桥的卡片（去重按 id）
+    const cards: KnowledgeCard[] = Array.from(
+      new Map<string, KnowledgeCard>(
+        bridgeHits.flatMap(h => getBridgeCards(h.bridge.id)).map((c): [string, KnowledgeCard] => [c.id, c])
+      ).values()
+    );
 
     // ── 阶段2：矛盾感知（谛听） ──
     const contradictions: Array<{ thesis: string; antithesis: string }> = [];
@@ -381,16 +423,52 @@ export class KunlunOS {
       } catch { /* ignore */ }
     }
 
+    // ── 阶段3.5：双轴子代理（量智 + 性智）──
+    // 大成智慧学：每座命中桥挂两个子代理，分别做逻辑推演(量智)与整体综合(性智)
+    const dualAxes = bridgeHits.map(h => analyzeBridgeDualAxis(h.bridge, queryText));
+
     // ── 阶段4：综合集成（大成智慧学核心） ──
     let synthesisResult: { stance: string; confidence: number } | undefined;
 
     if (this._metasynthesis && contradictions.length > 0) {
       try {
-        // 构建研讨参与者：矛盾的正反方 + 桥的学科视角
+        // 构建研讨参与者：矛盾正反方(带可统一性立场) + 每座桥的「量智」「性智」双轴子代理
+        //  Thesis/Antithesis 立场由谛听感知的可统一性(unifiability)映射，使矛盾信号进入共识
+        const thesisStance = unifiability === T_TRUE ? T_TRUE
+          : unifiability === T_FALSE ? T_FALSE : T_UNKNOWN;
+        const antiStance = unifiability === T_TRUE ? T_FALSE
+          : unifiability === T_FALSE ? T_TRUE : T_UNKNOWN;
         const participants: SynthesisParticipant[] = [
-          { id: 'thesis', name: contradictions[0]?.thesis ?? '正题', type: 'pi-agent' },
-          { id: 'antithesis', name: contradictions[0]?.antithesis ?? '反题', type: 'pi-agent' },
-          { id: 'bridge', name: `${bridge.icon} ${bridge.name}视角`, type: 'pi-agent' },
+          {
+            id: 'thesis', name: contradictions[0]?.thesis ?? '正题', type: 'pi-agent',
+            stance: thesisStance,
+            reasoning: `正题立场（谛听可统一性=${unifiability}）`,
+            confidence: unifiability !== T_UNKNOWN ? 0.7 : 0.4,
+          },
+          {
+            id: 'antithesis', name: contradictions[0]?.antithesis ?? '反题', type: 'pi-agent',
+            stance: antiStance,
+            reasoning: `反题立场（谛听可统一性=${unifiability}）`,
+            confidence: unifiability !== T_UNKNOWN ? 0.7 : 0.4,
+          },
+          ...dualAxes.flatMap(d => [
+            {
+              id: `lz-${d.bridgeId}`,
+              name: `${d.icon} ${d.bridgeName}·量智`,
+              type: 'pi-agent' as const,
+              stance: d.liangZhi.stance,
+              reasoning: d.liangZhi.reasoning,
+              confidence: d.liangZhi.confidence,
+            },
+            {
+              id: `xz-${d.bridgeId}`,
+              name: `${d.icon} ${d.bridgeName}·性智`,
+              type: 'pi-agent' as const,
+              stance: d.xingZhi.stance,
+              reasoning: d.xingZhi.reasoning,
+              confidence: d.xingZhi.confidence,
+            },
+          ]),
         ];
 
         const synthesis = await this._metasynthesis.synthesize(queryText, participants);
@@ -405,30 +483,67 @@ export class KunlunOS {
       } catch { /* ignore */ }
     }
 
+    // ── 阶段4.5：人以为主裁决（大成智慧学"人—机结合以人为主"）──
+    // 机器综合集成只是"草案"，最终裁决权在人；无人在线则诚实标记 pending_human
+    let humanReview: HumanReview | undefined;
+    if (synthesisResult && contradictions.length > 0) {
+      try {
+        const draft: MachineConsensusDraft = {
+          stance: synthesisResult.stance,
+          confidence: synthesisResult.confidence,
+          summary: '(详见摘要)',
+          bridges: bridgeHits.map(h => `${h.bridge.icon}${h.bridge.name}`),
+          basis: dualAxes.map(d =>
+            `〔${d.bridgeName}〕量智:${d.liangZhi.reasoning}；性智:${d.xingZhi.reasoning}`,
+          ),
+        };
+        humanReview = await requestHumanReview(this.getHumanChannel(), draft);
+      } catch { /* 无人在线走 pending，不阻塞 */ }
+    }
+
     // ── 阶段5: 天工渲染（三元信度驱动的表达） ──
     let renderedOutput: { overallConfidence: string; summary: string } | undefined;
 
     if (contradictions.length > 0) {
       try {
-        // 为矛盾对计算三元信度
+        // 三元信度：谛听可统一性(unifiability) + 加权共识立场(synthesisResult.stance)
+        // 二者并置，天工呈现"矛盾可统一程度"与"会商最终立场"双信号
+        const consensusTrit: Trit = synthesisResult
+          ? (synthesisResult.stance.includes('正题主导') ? T_TRUE
+             : synthesisResult.stance.includes('反题主导') ? T_FALSE : T_UNKNOWN)
+          : T_UNKNOWN;
         const trits: Trit[] = contradictions.map(() =>
           unifiability === T_TRUE ? T_TRUE : unifiability === T_FALSE ? T_FALSE : T_UNKNOWN
         );
+        trits.push(consensusTrit); // 叠加会商立场
+
         const renderResult = this._tiangong.render(
           contradictions.map(c => `${c.thesis} ↔ ${c.antithesis}`).join('；'),
           trits,
         );
         const tag = this._tiangong.getTag(renderResult.overallConfidence);
+        // 共识置信度接入天工：连续分级反映"系统有多确定"（约束4 不夸大）
+        const grade = synthesisResult
+          ? this._tiangong.getConfidenceGrade(synthesisResult.confidence)
+          : this._tiangong.getConfidenceGrade(0);
+        const confNote = synthesisResult
+          ? `（共识置信 ${Math.round(synthesisResult.confidence * 100)}%·${grade.grade}）`
+          : '';
         renderedOutput = {
-          overallConfidence: `${tag.symbol} ${tag.label}`,
-          summary: renderResult.confidenceSummary,
+          overallConfidence: `${tag.symbol} ${tag.label}${confNote}`,
+          summary: `${renderResult.confidenceSummary}｜${grade.symbol} ${grade.grade}：${grade.note}`,
         };
       } catch { /* ignore */ }
     }
 
     // ── 构建分析摘要 ──
     const summaryParts: string[] = [];
-    summaryParts.push(`📍 ${bridge.icon} ${bridge.name}桥`);
+    // 多桥命中：列出全部相关桥（大成智慧学跨域会商）
+    summaryParts.push(
+      bridgeHits.length > 1
+        ? `📍 多桥会商[${bridgeHits.map(h => `${h.bridge.icon}${h.bridge.name}`).join('·')}]`
+        : `📍 ${bridge.icon} ${bridge.name}桥`
+    );
 
     if (contradictions.length > 0) {
       const unifLabel = unifiability === 1 ? '可统一 ✅' : unifiability === 0 ? '待分析 ⚪' : '不可调和 ❌';
@@ -457,6 +572,10 @@ export class KunlunOS {
       rendered: renderedOutput,
     });
 
+    // ── 阶段5：龙门（知识自进化）──
+    // 大成智慧学：判不出的桥即缺卡信号，龙门探测缺口并生成补录草稿
+    const longmen = runLongmen(dualAxes, queryText);
+
     return {
       contradictions,
       unifiability,
@@ -467,9 +586,32 @@ export class KunlunOS {
       ecosystemHealth,
       summary,
       bridge: { id: bridge.id, name: bridge.name, icon: bridge.icon, axiom },
+      bridges: bridgeHits.map(h => ({
+        id: h.bridge.id, name: h.bridge.name, icon: h.bridge.icon, axiom: getBridgeAxiom(h.bridge.id),
+      })),
       knowledgeCards: cards.map(c => ({ id: c.id, title: c.title, type: c.type })),
       synthesis: synthesisResult,
       rendered: renderedOutput,
+      dualAxes: dualAxes.map(d => ({
+        bridgeId: d.bridgeId, bridgeName: d.bridgeName, icon: d.icon,
+        liangZhi: { stance: d.liangZhi.stance, reasoning: d.liangZhi.reasoning, confidence: d.liangZhi.confidence, cards: d.liangZhi.cards },
+        xingZhi: { stance: d.xingZhi.stance, reasoning: d.xingZhi.reasoning, confidence: d.xingZhi.confidence, cards: d.xingZhi.cards },
+      })),
+      longmen: {
+        detected: longmen.detected,
+        drafts: longmen.drafts.map(d => ({
+          id: d.id, bridgeId: d.bridgeId, layer: d.layer, type: d.type,
+          title: d.title, content: d.content, sourceBasis: d.sourceBasis, confidence: d.confidence,           status: d.status,
+        })),
+      },
+      humanReview: humanReview ? {
+        status: humanReview.status,
+        draftStance: humanReview.draft.stance,
+        draftConfidence: humanReview.draft.confidence,
+        finalStance: humanReview.finalStance,
+        humanNote: humanReview.humanNote,
+        decidedBy: humanReview.decidedBy,
+      } : undefined,
       promptInjection,
     };
   }

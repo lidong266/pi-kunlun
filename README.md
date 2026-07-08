@@ -7,8 +7,26 @@
 [![Node](https://img.shields.io/badge/Node-%3E%3D22-green)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-9.15-orange)](https://pnpm.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-903%20passing-brightgreen)](.)
-[![Build](https://img.shields.io/badge/build-22%20packages-blue)](.)
+[![Tests](https://img.shields.io/badge/tests-694%20passing-brightgreen)](.)
+[![Build](https://img.shields.io/badge/build-11%20packages-blue)](.)
+
+> **⚠️ 当前成熟度：种子期 → 成长期过渡**（诚实标注，见[架构文档约束4](./昆仑OS-大成智慧学架构设计文档.md)）。
+> 十一桥路由(P0)、量智/性智双轴(P1)、龙门自进化(P2)、人以为主裁决(P3) 已接通，但**学科专家资格仍由规则卡(seed 33张 + 龙门草稿)驱动，非数据驱动的真正专家**；综合集成共识计算为骨架占位（双轴已注入立场）。落地清单见[项目落地文档](./昆仑OS-项目落地到安装运行步骤.md)。
+
+---
+
+## 当前成熟度（诚实标注）
+
+按大成智慧学架构落地路线，系统分三阶段：
+
+| 阶段 | 标志 | 当前状态 |
+|------|------|---------|
+| **种子期** | 33 张种子卡，专家靠 prompt/规则撑，多数桥是"空专家" | ✅ 已越过（P0/P1/P2/P3 已接） |
+| **成长期** | 龙门持续补录、卡片丰富、双轴能真实判题 | 🟡 **当前所在**：龙门刚接通，卡片仍稀疏，双轴对抽象命题常判不出 |
+| **成熟期** | 真·数据驱动专家，归藏卡片自繁衍，共识计算真实 | 🔴 未到 |
+
+**已落地**（本轮）：多桥路由、量智×性智双轴、龙门缺桥补录并写归藏、人以为主裁决闭环。
+**已知局限**：综合分析共识计算仍为骨架（参与者立场 T_UNKNOWN 占位，仅双轴带立场）；种子卡覆盖有限导致抽象命题判不出（由龙门补）；无人在线时共识仅标"待人工确认"不擅权。
 
 ---
 
@@ -32,8 +50,8 @@ bash install.sh                 # 也可指定目录: bash install.sh my-app
 git clone https://github.com/lidong266/KunlunOS.git
 cd KunlunOS
 pnpm install
-pnpm test          # 903 tests, 37 files
-pnpm -r build      # 22 packages
+pnpm test          # 694 tests (注意: 勿用 pnpm -r test, fork/agent vitest 版本冲突; 用 npx vitest run)
+pnpm -r build      # 11 packages
 ```
 
 ### 运行离线认知 CLI（无需 LLM API）

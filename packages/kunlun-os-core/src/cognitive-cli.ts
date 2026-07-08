@@ -397,11 +397,15 @@ export class CognitiveCLI {
 
     console.log(`\n📝 输入: ${query}`);
 
-    // 十一桥路由
-    if (a.bridge) {
-      console.log('\n【十一桥路由】');
-      console.log(`  ${a.bridge.icon} ${a.bridge.id} · ${a.bridge.name}桥`);
-      console.log(`  公理: ${a.bridge.axiom}`);
+    // 十一桥路由（多桥会商）
+    const hits = a.bridges && a.bridges.length > 0 ? a.bridges : (a.bridge ? [a.bridge] : []);
+    if (hits.length > 0) {
+      console.log('\n【十一桥路由】' + (hits.length > 1 ? ` · 多桥会商(${hits.length}座)` : ''));
+      for (const b of hits) {
+        const tag = b.id === a.bridge?.id ? ' ◀主桥' : '';
+        console.log(`  ${b.icon} ${b.id} · ${b.name}桥${tag}`);
+        if (b.id === a.bridge?.id) console.log(`  公理: ${b.axiom}`);
+      }
     }
 
     // 知识卡片
@@ -429,6 +433,44 @@ export class CognitiveCLI {
       console.log('\n【综合集成·大成智慧学】');
       console.log(`  共识立场: ${a.synthesis.stance}`);
       console.log(`  置信度:   ${a.synthesis.confidence}`);
+    }
+
+    // 双轴子代理（量智 + 性智）
+    if (a.dualAxes && a.dualAxes.length > 0) {
+      console.log('\n【双轴子代理·量智×性智】');
+      for (const d of a.dualAxes) {
+        console.log(`  ${d.icon} ${d.bridgeId} · ${d.bridgeName}桥`);
+        console.log(`    ⚙ 量智: ${tritLabel(d.liangZhi.stance as any)} | 置信 ${d.liangZhi.confidence.toFixed(2)} | ${d.liangZhi.reasoning}`);
+        console.log(`    ✦ 性智: ${tritLabel(d.xingZhi.stance as any)} | 置信 ${d.xingZhi.confidence.toFixed(2)} | ${d.xingZhi.reasoning}`);
+      }
+    }
+
+    // 龙门补录（知识自进化）
+    if (a.longmen && a.longmen.drafts.length > 0) {
+      console.log('\n【龙门·知识自进化】');
+      for (const d of a.longmen.drafts) {
+        const typeLabel: Record<string, string> = { AX: '公理卡', SC: '学科卡', TC: '工具卡' };
+        console.log(`  🐉 ${d.bridgeId} ${d.layer}→${typeLabel[d.type] || d.type} (置信${Math.round(d.confidence * 100)}%)`);
+        console.log(`     📋 ${d.title}`);
+        console.log(`     🔎 ${d.sourceBasis}`);
+      }
+    }
+
+    // 人以为主裁决（大成智慧学"人—机结合以人为主"）
+    if (a.humanReview) {
+      console.log('\n【人以为主·共识裁决】');
+      const statusLabel: Record<string, string> = {
+        pending_human: '⏳ 待人工确认（机器不擅权）',
+        confirmed: '✅ 人已确认',
+        revised: '✏️ 人已修订',
+        rejected: '⛔ 人已否决',
+      };
+      console.log(`  机器草案: ${a.humanReview.draftStance} (置信${Math.round(a.humanReview.draftConfidence * 100)}%)`);
+      console.log(`  裁决状态: ${statusLabel[a.humanReview.status] || a.humanReview.status}`);
+      if (a.humanReview.finalStance && a.humanReview.finalStance !== a.humanReview.draftStance) {
+        console.log(`  最终立场: ${a.humanReview.finalStance}`);
+      }
+      if (a.humanReview.humanNote) console.log(`  🔎 ${a.humanReview.humanNote}`);
     }
 
     // 天工渲染
